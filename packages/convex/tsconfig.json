@@ -8,7 +8,8 @@
         "noEmit": true,
         "esModuleInterop": true,
         "skipLibCheck": true,
-        "jsx": "preserve"
+        "jsx": "preserve",
+        "types": ["bun"]
     },
     "include": ["convex/**/*"]
 }

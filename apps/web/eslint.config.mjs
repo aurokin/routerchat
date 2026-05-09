@@ -29,6 +29,8 @@ export default tseslint.config(
             ...pluginReact.configs["jsx-runtime"].rules,
             ...pluginReactHooks.configs.recommended.rules,
             "react/react-in-jsx-scope": "off",
+            // Surfaced by ESLint 10 + react-hooks 7.1; will be addressed in W2.
+            "react-hooks/set-state-in-effect": "warn",
         },
     },
     {

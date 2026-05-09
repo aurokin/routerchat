@@ -45,11 +45,11 @@
         "prepare": "husky"
     },
     "devDependencies": {
-        "@fsouza/prettierd": "^0.26.2",
+        "@fsouza/prettierd": "^0.27.0",
         "@types/bun": "latest",
         "concurrently": "^9.2.1",
         "husky": "^9.1.7",
-        "prettier": "^3.8.1"
+        "prettier": "^3.8.3"
     },
     "prettier": {
         "tabWidth": 4,

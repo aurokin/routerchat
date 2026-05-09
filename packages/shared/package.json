@@ -13,8 +13,9 @@
         "health": "bun run format && bun run typecheck && bun run lint && bun run test"
     },
     "devDependencies": {
-        "eslint": "^9.39.2",
-        "typescript": "^5.9.3",
-        "typescript-eslint": "^8.53.1"
+        "@types/bun": "^1.3.13",
+        "eslint": "^10.3.0",
+        "typescript": "^6.0.3",
+        "typescript-eslint": "^8.59.2"
     }
 }

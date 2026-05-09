@@ -919,11 +919,11 @@ body {
     opacity: 0;
     transform: translateY(15px);
     transition: all 250ms cubic-bezier(0.4, 0, 0.2, 1);
-}
 
-@utility reveal-on-scroll.visible {
-    opacity: 1;
-    transform: translateY(0);
+    &.visible {
+        opacity: 1;
+        transform: translateY(0);
+    }
 }
 
 /* Hover card effects */

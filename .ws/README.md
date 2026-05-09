@@ -25,7 +25,7 @@ Working set of implementation plans for the post-OSS-launch refactor. These file
 
 | ID | File | Status |
 |---|---|---|
-| W0 | `W0-housekeeping.md` | not started |
+| W0 | `W0-housekeeping.md` | [x] complete |
 | W1 | `W1-quality-gates.md` | not started |
 | W2 | `W2-type-safety.md` | not started |
 | W3 | `W3-convex.md` | not started |
