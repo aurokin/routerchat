@@ -1,4 +1,4 @@
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 import { paginationOptsValidator } from "convex/server";
 import { mutation, query } from "./_generated/server";
 import { isOwner, requireAuthUserId, requireUserMatches } from "./lib/authz";
@@ -10,6 +10,36 @@ import {
     ensureCloudUsageCounters,
 } from "./lib/cloud_usage";
 
+const skillSnapshotValidator = v.object({
+    id: v.string(),
+    name: v.string(),
+    description: v.string(),
+    prompt: v.string(),
+    createdAt: v.number(),
+});
+
+const messageDocValidator = v.object({
+    _id: v.id("messages"),
+    _creationTime: v.number(),
+    userId: v.id("users"),
+    chatId: v.id("chats"),
+    localId: v.optional(v.string()),
+    role: v.union(
+        v.literal("user"),
+        v.literal("assistant"),
+        v.literal("system"),
+    ),
+    content: v.string(),
+    contextContent: v.string(),
+    thinking: v.optional(v.string()),
+    skill: v.optional(v.union(v.null(), skillSnapshotValidator)),
+    modelId: v.optional(v.string()),
+    thinkingLevel: v.optional(v.string()),
+    searchLevel: v.optional(v.string()),
+    attachmentIds: v.optional(v.array(v.string())),
+    createdAt: v.number(),
+});
+
 /**
  * Message Operations
  *
@@ -19,6 +49,7 @@ import {
 // Get all messages for a chat, sorted by createdAt ascending
 export const listByChat = query({
     args: { chatId: v.id("chats") },
+    returns: v.array(messageDocValidator),
     handler: async (ctx, args) => {
         const authenticatedUserId = await requireAuthUserId(ctx);
         const chat = await ctx.db.get(args.chatId);
@@ -41,6 +72,19 @@ export const listByChatPaginated = query({
         chatId: v.id("chats"),
         paginationOpts: paginationOptsValidator,
     },
+    returns: v.object({
+        page: v.array(messageDocValidator),
+        isDone: v.boolean(),
+        continueCursor: v.string(),
+        splitCursor: v.optional(v.union(v.null(), v.string())),
+        pageStatus: v.optional(
+            v.union(
+                v.null(),
+                v.literal("SplitRecommended"),
+                v.literal("SplitRequired"),
+            ),
+        ),
+    }),
     handler: async (ctx, args) => {
         const authenticatedUserId = await requireAuthUserId(ctx);
         const chat = await ctx.db.get(args.chatId);
@@ -68,6 +112,7 @@ export const listByChatPaginated = query({
 // Get a single message by ID
 export const get = query({
     args: { id: v.id("messages") },
+    returns: v.union(v.null(), messageDocValidator),
     handler: async (ctx, args) => {
         const authenticatedUserId = await requireAuthUserId(ctx);
         const message = await ctx.db.get(args.id);
@@ -82,6 +127,7 @@ export const getByLocalId = query({
         userId: v.id("users"),
         localId: v.string(),
     },
+    returns: v.union(v.null(), messageDocValidator),
     handler: async (ctx, args) => {
         const authenticatedUserId = await requireAuthUserId(ctx);
         requireUserMatches(authenticatedUserId, args.userId);
@@ -110,13 +156,14 @@ export const create = mutation({
         content: v.string(),
         contextContent: v.string(),
         thinking: v.optional(v.string()),
-        skill: v.optional(v.any()),
+        skill: v.optional(v.union(v.null(), skillSnapshotValidator)),
         modelId: v.optional(v.string()),
         thinkingLevel: v.optional(v.string()),
         searchLevel: v.optional(v.string()),
         attachmentIds: v.optional(v.array(v.string())),
         createdAt: v.optional(v.number()),
     },
+    returns: v.id("messages"),
     handler: async (ctx, args) => {
         const authenticatedUserId = await requireAuthUserId(ctx);
         requireUserMatches(authenticatedUserId, args.userId);
@@ -132,12 +179,20 @@ export const create = mutation({
 
         const chat = await ctx.db.get(args.chatId);
         if (!isOwner(chat, authenticatedUserId)) {
-            throw new Error("Chat not found");
+            throw new ConvexError({
+                code: "NOT_FOUND",
+                message: "Chat not found",
+                resource: "chats",
+            });
         }
 
         const usage = await ensureCloudUsageCounters(ctx, authenticatedUserId);
         if (usage.messageCount >= LIMITS.maxMessagesPerUser) {
-            throw new Error("Message limit reached");
+            throw new ConvexError({
+                code: "LIMIT_REACHED",
+                message: "Message limit reached",
+                resource: "messages",
+            });
         }
 
         const now = Date.now();
@@ -181,11 +236,16 @@ export const update = mutation({
         thinking: v.optional(v.string()),
         attachmentIds: v.optional(v.array(v.string())),
     },
+    returns: v.null(),
     handler: async (ctx, args) => {
         const authenticatedUserId = await requireAuthUserId(ctx);
         const message = await ctx.db.get(args.id);
         if (!isOwner(message, authenticatedUserId)) {
-            throw new Error("Not found");
+            throw new ConvexError({
+                code: "NOT_FOUND",
+                message: "Message not found",
+                resource: "messages",
+            });
         }
 
         assertMaxLen(args.content, LIMITS.maxMessageContentChars, "content");
@@ -201,17 +261,23 @@ export const update = mutation({
             Object.entries(updates).filter(([, v]) => v !== undefined),
         );
         await ctx.db.patch(id, filteredUpdates);
+        return null;
     },
 });
 
 // Delete a message and its attachments
 export const remove = mutation({
     args: { id: v.id("messages") },
+    returns: v.null(),
     handler: async (ctx, args) => {
         const authenticatedUserId = await requireAuthUserId(ctx);
         const message = await ctx.db.get(args.id);
         if (!isOwner(message, authenticatedUserId)) {
-            throw new Error("Not found");
+            throw new ConvexError({
+                code: "NOT_FOUND",
+                message: "Message not found",
+                resource: "messages",
+            });
         }
 
         let deletedAttachments = 0;
@@ -223,10 +289,10 @@ export const remove = mutation({
                     .query("attachments")
                     .withIndex("by_message", (q) => q.eq("messageId", args.id))
                     .take(100),
-            async (attachment: any) => {
-                if (!attachment?.purgedAt) {
+            async (attachment) => {
+                if (!attachment.purgedAt) {
                     deletedAttachments++;
-                    freedAttachmentBytes += attachment?.size ?? 0;
+                    freedAttachmentBytes += attachment.size;
                 }
                 await safeStorageDelete(ctx, attachment.storageId);
                 await ctx.db.delete(attachment._id);
@@ -241,17 +307,24 @@ export const remove = mutation({
             attachmentCount: -deletedAttachments,
             attachmentBytes: -freedAttachmentBytes,
         });
+
+        return null;
     },
 });
 
 // Delete all messages for a chat
 export const deleteByChat = mutation({
     args: { chatId: v.id("chats") },
+    returns: v.null(),
     handler: async (ctx, args) => {
         const authenticatedUserId = await requireAuthUserId(ctx);
         const chat = await ctx.db.get(args.chatId);
         if (!isOwner(chat, authenticatedUserId)) {
-            throw new Error("Chat not found");
+            throw new ConvexError({
+                code: "NOT_FOUND",
+                message: "Chat not found",
+                resource: "chats",
+            });
         }
 
         let deletedMessages = 0;
@@ -262,9 +335,11 @@ export const deleteByChat = mutation({
             () =>
                 ctx.db
                     .query("messages")
-                    .withIndex("by_chat", (q) => q.eq("chatId", args.chatId))
+                    .withIndex("by_chat_created", (q) =>
+                        q.eq("chatId", args.chatId),
+                    )
                     .take(100),
-            async (message: any) => {
+            async (message) => {
                 deletedMessages++;
                 await drainBatches(
                     () =>
@@ -274,10 +349,10 @@ export const deleteByChat = mutation({
                                 q.eq("messageId", message._id),
                             )
                             .take(100),
-                    async (attachment: any) => {
-                        if (!attachment?.purgedAt) {
+                    async (attachment) => {
+                        if (!attachment.purgedAt) {
                             deletedAttachments++;
-                            freedAttachmentBytes += attachment?.size ?? 0;
+                            freedAttachmentBytes += attachment.size;
                         }
                         await safeStorageDelete(ctx, attachment.storageId);
                         await ctx.db.delete(attachment._id);
@@ -293,5 +368,7 @@ export const deleteByChat = mutation({
             attachmentCount: -deletedAttachments,
             attachmentBytes: -freedAttachmentBytes,
         });
+
+        return null;
     },
 });

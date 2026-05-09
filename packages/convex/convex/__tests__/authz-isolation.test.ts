@@ -93,7 +93,7 @@ describe("cross-user auth isolation", () => {
             runHandler(getUser as unknown as HandlerExport, ctx, {
                 id: OTHER_USER_ID,
             }),
-        ).rejects.toThrow("Unauthorized");
+        ).rejects.toThrow("FORBIDDEN");
     });
 
     test("chats.listByUser rejects userId mismatch", async () => {
@@ -103,7 +103,7 @@ describe("cross-user auth isolation", () => {
             runHandler(listChatsByUser as unknown as HandlerExport, ctx, {
                 userId: OTHER_USER_ID,
             }),
-        ).rejects.toThrow("Unauthorized");
+        ).rejects.toThrow("FORBIDDEN");
     });
 
     test("chats.get returns null for non-owner chat", async () => {
@@ -171,7 +171,7 @@ describe("cross-user auth isolation", () => {
                 id: CHAT_ID,
                 title: "attempted takeover",
             }),
-        ).rejects.toThrow("Not found");
+        ).rejects.toThrow("NOT_FOUND");
     });
 
     test("messages.update rejects updating another user's message", async () => {
@@ -187,7 +187,7 @@ describe("cross-user auth isolation", () => {
                 id: MESSAGE_ID,
                 content: "attempted overwrite",
             }),
-        ).rejects.toThrow("Not found");
+        ).rejects.toThrow("NOT_FOUND");
     });
 
     test("attachments.remove rejects deleting another user's attachment", async () => {
@@ -203,7 +203,7 @@ describe("cross-user auth isolation", () => {
             runHandler(removeAttachment as unknown as HandlerExport, ctx, {
                 id: ATTACHMENT_ID,
             }),
-        ).rejects.toThrow("Not found");
+        ).rejects.toThrow("NOT_FOUND");
     });
 
     test("chats.create rejects creating chat for another user id", async () => {
@@ -217,7 +217,7 @@ describe("cross-user auth isolation", () => {
                 thinking: "none",
                 searchLevel: "none",
             }),
-        ).rejects.toThrow("Unauthorized");
+        ).rejects.toThrow("FORBIDDEN");
     });
 
     test("messages.create rejects creating message for another user id", async () => {
@@ -231,7 +231,7 @@ describe("cross-user auth isolation", () => {
                 content: "hello",
                 contextContent: "hello",
             }),
-        ).rejects.toThrow("Unauthorized");
+        ).rejects.toThrow("FORBIDDEN");
     });
 
     test("attachments.create rejects userId mismatch before reading storage metadata", async () => {
@@ -259,7 +259,7 @@ describe("cross-user auth isolation", () => {
                 height: 1,
                 size: 12,
             }),
-        ).rejects.toThrow("Unauthorized");
+        ).rejects.toThrow("FORBIDDEN");
 
         expect(getMetadataCalls).toHaveLength(0);
     });

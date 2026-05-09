@@ -18,7 +18,7 @@ export type ConvexId<TableName extends string> = string & {
 };
 
 /**
- * Convex client interface for mutations and queries.
+ * Convex client interface for mutations, queries, and actions.
  */
 export interface ConvexClientInterface {
     mutation<Args, Result>(
@@ -27,6 +27,10 @@ export interface ConvexClientInterface {
     ): Promise<Result>;
     query<Args, Result>(
         fn: ConvexFunctionReference<"query", Args, Result>,
+        args: Args,
+    ): Promise<Result>;
+    action<Args, Result>(
+        fn: ConvexFunctionReference<"action", Args, Result>,
         args: Args,
     ): Promise<Result>;
 }

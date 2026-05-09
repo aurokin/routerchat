@@ -1,18 +1,28 @@
 import { convexAuth } from "@convex-dev/auth/server";
 import Google, { type GoogleProfile } from "@auth/core/providers/google";
+import type { GenericMutationCtx } from "convex/server";
+import type { DataModel, Id } from "./_generated/dataModel";
 
-const getProfileUpdates = (
-    profile: Record<string, unknown> & {
-        email?: string;
-        phone?: string;
-        emailVerified?: boolean;
-        phoneVerified?: boolean;
-        name?: string;
-        image?: string;
-    },
-    now: number,
-) => {
-    const updates: Record<string, unknown> = {};
+type AuthProfile = Record<string, unknown> & {
+    email?: string;
+    phone?: string;
+    emailVerified?: boolean;
+    phoneVerified?: boolean;
+    name?: string;
+    image?: string;
+};
+
+type UserPatch = {
+    name?: string;
+    image?: string;
+    email?: string;
+    phone?: string;
+    emailVerificationTime?: number;
+    phoneVerificationTime?: number;
+};
+
+const getProfileUpdates = (profile: AuthProfile, now: number): UserPatch => {
+    const updates: UserPatch = {};
 
     if (typeof profile.name === "string") {
         updates.name = profile.name;
@@ -37,10 +47,10 @@ const getProfileUpdates = (
 };
 
 const getInitialSync = async (
-    ctx: { db: any },
-    userId: string,
+    ctx: GenericMutationCtx<DataModel>,
+    userId: Id<"users">,
     existingInitialSync: boolean | undefined,
-) => {
+): Promise<boolean> => {
     if (existingInitialSync !== undefined) {
         return existingInitialSync;
     }
@@ -48,11 +58,11 @@ const getInitialSync = async (
     const [chat, skill] = await Promise.all([
         ctx.db
             .query("chats")
-            .filter((q: any) => q.eq(q.field("userId"), userId))
+            .withIndex("by_user_updated", (q) => q.eq("userId", userId))
             .first(),
         ctx.db
             .query("skills")
-            .filter((q: any) => q.eq(q.field("userId"), userId))
+            .withIndex("by_user", (q) => q.eq("userId", userId))
             .first(),
     ]);
 

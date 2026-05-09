@@ -1,3 +1,4 @@
+import { ConvexError } from "convex/values";
 import type { Id } from "../_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "../_generated/server";
 
@@ -25,6 +26,14 @@ const USER_COUNTER_FIELDS = {
     attachmentBytes: "cloudAttachmentBytes",
 } as const;
 
+type UserCounterFields = {
+    cloudChatCount?: number;
+    cloudMessageCount?: number;
+    cloudSkillCount?: number;
+    cloudAttachmentCount?: number;
+    cloudAttachmentBytes?: number;
+};
+
 function isNonNegativeFiniteNumber(value: unknown): value is number {
     return (
         typeof value === "number" &&
@@ -44,19 +53,12 @@ export function readCloudUsageCountersFromUser(
 ): CloudUsageCounters | null {
     if (!user || typeof user !== "object") return null;
 
-    const chatCount = readNumber((user as any)[USER_COUNTER_FIELDS.chatCount]);
-    const messageCount = readNumber(
-        (user as any)[USER_COUNTER_FIELDS.messageCount],
-    );
-    const skillCount = readNumber(
-        (user as any)[USER_COUNTER_FIELDS.skillCount],
-    );
-    const attachmentCount = readNumber(
-        (user as any)[USER_COUNTER_FIELDS.attachmentCount],
-    );
-    const attachmentBytes = readNumber(
-        (user as any)[USER_COUNTER_FIELDS.attachmentBytes],
-    );
+    const counters = user as UserCounterFields;
+    const chatCount = readNumber(counters.cloudChatCount);
+    const messageCount = readNumber(counters.cloudMessageCount);
+    const skillCount = readNumber(counters.cloudSkillCount);
+    const attachmentCount = readNumber(counters.cloudAttachmentCount);
+    const attachmentBytes = readNumber(counters.cloudAttachmentBytes);
 
     if (
         chatCount === null ||
@@ -79,7 +81,7 @@ export function readCloudUsageCountersFromUser(
 
 export function cloudUsageCountersToPatch(
     counters: CloudUsageCounters,
-): Record<string, number> {
+): UserCounterFields {
     return {
         [USER_COUNTER_FIELDS.chatCount]: counters.chatCount,
         [USER_COUNTER_FIELDS.messageCount]: counters.messageCount,
@@ -111,13 +113,19 @@ async function countPaginated<T>(
         }
 
         if (result.continueCursor === cursor) {
-            throw new Error("Pagination cursor did not advance");
+            throw new ConvexError({
+                code: "PAGINATION_STALLED",
+                message: "Pagination cursor did not advance",
+            });
         }
 
         cursor = result.continueCursor;
     }
 
-    throw new Error("Pagination exceeded maximum number of pages");
+    throw new ConvexError({
+        code: "PAGINATION_OVERFLOW",
+        message: "Pagination exceeded maximum number of pages",
+    });
 }
 
 export async function computeCloudChatCount(
@@ -127,7 +135,7 @@ export async function computeCloudChatCount(
     return await countPaginated((cursor) =>
         ctx.db
             .query("chats")
-            .withIndex("by_user", (q) => q.eq("userId", userId))
+            .withIndex("by_user_updated", (q) => q.eq("userId", userId))
             .paginate({ numItems: 1_000, cursor }),
     );
 }
@@ -171,10 +179,10 @@ export async function computeCloudAttachmentUsage(
             .order("asc")
             .paginate({ numItems: 1_000, cursor });
 
-        for (const attachment of result.page as any[]) {
-            if (attachment?.purgedAt) continue;
+        for (const attachment of result.page) {
+            if (attachment.purgedAt) continue;
             count++;
-            bytes += attachment?.size ?? 0;
+            bytes += attachment.size;
         }
 
         if (result.isDone) {
@@ -184,12 +192,18 @@ export async function computeCloudAttachmentUsage(
             };
         }
         if (result.continueCursor === cursor) {
-            throw new Error("Pagination cursor did not advance");
+            throw new ConvexError({
+                code: "PAGINATION_STALLED",
+                message: "Pagination cursor did not advance",
+            });
         }
         cursor = result.continueCursor;
     }
 
-    throw new Error("Pagination exceeded maximum number of pages");
+    throw new ConvexError({
+        code: "PAGINATION_OVERFLOW",
+        message: "Pagination exceeded maximum number of pages",
+    });
 }
 
 export async function computeCloudUsageCounters(
@@ -219,7 +233,11 @@ export async function ensureCloudUsageCounters(
 ): Promise<CloudUsageCounters> {
     const user = await ctx.db.get(userId);
     if (!user) {
-        throw new Error("User not found");
+        throw new ConvexError({
+            code: "NOT_FOUND",
+            message: "User not found",
+            resource: "users",
+        });
     }
 
     const existing = readCloudUsageCountersFromUser(user);
@@ -227,8 +245,8 @@ export async function ensureCloudUsageCounters(
         return existing;
     }
 
-    const computed = await computeCloudUsageCounters(ctx as any, userId);
-    await ctx.db.patch(userId, cloudUsageCountersToPatch(computed) as any);
+    const computed = await computeCloudUsageCounters(ctx, userId);
+    await ctx.db.patch(userId, cloudUsageCountersToPatch(computed));
     return computed;
 }
 
@@ -237,7 +255,7 @@ export async function applyCloudUsageDelta(
     userId: Id<"users">,
     delta: Partial<CloudUsageCounters>,
 ): Promise<CloudUsageCounters> {
-    const current = await ensureCloudUsageCounters(ctx as any, userId);
+    const current = await ensureCloudUsageCounters(ctx, userId);
 
     const next: CloudUsageCounters = {
         chatCount: Math.max(0, current.chatCount + (delta.chatCount ?? 0)),
@@ -256,7 +274,7 @@ export async function applyCloudUsageDelta(
         ),
     };
 
-    await ctx.db.patch(userId, cloudUsageCountersToPatch(next) as any);
+    await ctx.db.patch(userId, cloudUsageCountersToPatch(next));
     return next;
 }
 

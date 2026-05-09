@@ -23,15 +23,15 @@ Working set of implementation plans for the post-OSS-launch refactor. These file
 
 ## Workstream index
 
-| ID  | File                  | Status       |
-| --- | --------------------- | ------------ |
-| W0  | `W0-housekeeping.md`  | [x] complete |
-| W1  | `W1-quality-gates.md` | [x] complete |
-| W2  | `W2-type-safety.md`   | [x] complete |
-| W3  | `W3-convex.md`        | not started  |
-| W4  | `W4-openrouter.md`    | not started  |
-| W5  | `W5-testing.md`       | not started  |
-| W6  | `W6-architecture.md`  | not started  |
+| ID  | File                  | Status                                                                        |
+| --- | --------------------- | ----------------------------------------------------------------------------- |
+| W0  | `W0-housekeeping.md`  | [x] complete                                                                  |
+| W1  | `W1-quality-gates.md` | [x] complete                                                                  |
+| W2  | `W2-type-safety.md`   | [x] complete                                                                  |
+| W3  | `W3-convex.md`        | [~] mechanical + security shipped; components deferred (need live deployment) |
+| W4  | `W4-openrouter.md`    | not started                                                                   |
+| W5  | `W5-testing.md`       | not started                                                                   |
+| W6  | `W6-architecture.md`  | not started                                                                   |
 
 ## Sequencing
 

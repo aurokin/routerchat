@@ -1,3 +1,5 @@
+import { ConvexError } from "convex/values";
+
 function readPositiveIntEnv(name: string, fallback: number): number {
     const raw = process.env[name];
     if (!raw) return fallback;
@@ -80,6 +82,11 @@ export function assertMaxLen(
 ): void {
     if (value === undefined) return;
     if (value.length > maxChars) {
-        throw new Error(`${fieldName} exceeds maximum length`);
+        throw new ConvexError({
+            code: "FIELD_TOO_LONG",
+            message: `${fieldName} exceeds maximum length`,
+            fieldName,
+            maxChars,
+        });
     }
 }

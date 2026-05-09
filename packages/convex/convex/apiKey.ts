@@ -1,19 +1,31 @@
-import { v } from "convex/values";
-import { query, mutation } from "./_generated/server";
+import { ConvexError, v } from "convex/values";
+import {
+    action,
+    internalMutation,
+    internalQuery,
+    mutation,
+    query,
+} from "./_generated/server";
+import { internal } from "./_generated/api";
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { encrypt, decrypt, isEncryptionConfigured } from "./lib/encryption";
 import { requireAuthUserId } from "./lib/authz";
+import type { Id } from "./_generated/dataModel";
 
 /**
  * Set (or update) the user's encrypted API key
  */
 export const setApiKey = mutation({
     args: { apiKey: v.string() },
+    returns: v.null(),
     handler: async (ctx, args) => {
         const userId = await requireAuthUserId(ctx);
 
         if (!isEncryptionConfigured()) {
-            throw new Error("Encryption is not configured on the server");
+            throw new ConvexError({
+                code: "ENCRYPTION_NOT_CONFIGURED",
+                message: "Encryption is not configured on the server",
+            });
         }
 
         const { ciphertext, nonce } = await encrypt(args.apiKey);
@@ -24,36 +36,113 @@ export const setApiKey = mutation({
             apiKeyUpdatedAt: Date.now(),
             updatedAt: Date.now(),
         });
+
+        return null;
     },
 });
 
 /**
- * Get the user's decrypted API key
- * Returns null if no API key is stored or if decryption fails
+ * Internal query: returns the encrypted API key blob for a specific user.
+ * Only callable from server-side actions (never from clients).
  */
-export const getApiKey = query({
-    handler: async (ctx) => {
-        const userId = await getAuthUserId(ctx);
+export const getEncryptedApiKey = internalQuery({
+    args: { userId: v.id("users") },
+    returns: v.union(
+        v.null(),
+        v.object({
+            encryptedApiKey: v.string(),
+            apiKeyNonce: v.string(),
+        }),
+    ),
+    handler: async (ctx, args) => {
+        const user = await ctx.db.get(args.userId);
+        if (!user?.encryptedApiKey || !user?.apiKeyNonce) {
+            return null;
+        }
+        return {
+            encryptedApiKey: user.encryptedApiKey,
+            apiKeyNonce: user.apiKeyNonce,
+        };
+    },
+});
+
+/**
+ * Internal mutation: append-only audit log entry for API key access.
+ */
+export const recordApiKeyAccess = internalMutation({
+    args: {
+        userId: v.id("users"),
+        kind: v.union(v.literal("read"), v.literal("read_failed")),
+        reason: v.optional(v.string()),
+    },
+    returns: v.null(),
+    handler: async (ctx, args) => {
+        await ctx.db.insert("apiKeyAccess", {
+            userId: args.userId,
+            kind: args.kind,
+            reason: args.reason,
+            accessedAt: Date.now(),
+        });
+        return null;
+    },
+});
+
+/**
+ * Get the caller's decrypted API key.
+ *
+ * Implemented as an `action` so the plaintext value is not subscribable as a
+ * reactive query, and so that every read is recorded in the audit log.
+ *
+ * Returns `null` when:
+ *   - the caller isn't authenticated
+ *   - the caller has no stored key
+ *   - encryption isn't configured
+ *   - decryption fails (corrupt data, key rotation mismatch, etc.)
+ */
+export const getDecryptedApiKey = action({
+    args: {},
+    returns: v.union(v.null(), v.string()),
+    handler: async (ctx): Promise<string | null> => {
+        const userId = (await getAuthUserId(ctx)) as Id<"users"> | null;
         if (!userId) {
             return null;
         }
 
-        const user = await ctx.db.get(userId);
-        if (!user?.encryptedApiKey || !user?.apiKeyNonce) {
+        const encrypted = await ctx.runQuery(
+            internal.apiKey.getEncryptedApiKey,
+            {
+                userId,
+            },
+        );
+        if (!encrypted) {
             return null;
         }
 
         if (!isEncryptionConfigured()) {
-            console.error(
-                "Encryption is not configured, cannot decrypt API key",
-            );
+            await ctx.runMutation(internal.apiKey.recordApiKeyAccess, {
+                userId,
+                kind: "read_failed",
+                reason: "encryption_not_configured",
+            });
             return null;
         }
 
         try {
-            return await decrypt(user.encryptedApiKey, user.apiKeyNonce);
-        } catch (error) {
-            console.error("Failed to decrypt API key:", error);
+            const plaintext = await decrypt(
+                encrypted.encryptedApiKey,
+                encrypted.apiKeyNonce,
+            );
+            await ctx.runMutation(internal.apiKey.recordApiKeyAccess, {
+                userId,
+                kind: "read",
+            });
+            return plaintext;
+        } catch {
+            await ctx.runMutation(internal.apiKey.recordApiKeyAccess, {
+                userId,
+                kind: "read_failed",
+                reason: "decryption_failed",
+            });
             return null;
         }
     },
@@ -63,6 +152,8 @@ export const getApiKey = query({
  * Clear the user's API key from the cloud
  */
 export const clearApiKey = mutation({
+    args: {},
+    returns: v.null(),
     handler: async (ctx) => {
         const userId = await requireAuthUserId(ctx);
 
@@ -72,6 +163,8 @@ export const clearApiKey = mutation({
             apiKeyUpdatedAt: Date.now(),
             updatedAt: Date.now(),
         });
+
+        return null;
     },
 });
 
@@ -79,6 +172,8 @@ export const clearApiKey = mutation({
  * Check if the user has an API key stored in the cloud
  */
 export const hasApiKey = query({
+    args: {},
+    returns: v.boolean(),
     handler: async (ctx) => {
         const userId = await getAuthUserId(ctx);
         if (!userId) {

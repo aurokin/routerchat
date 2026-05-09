@@ -622,8 +622,8 @@ function SyncProviderBase({
             }
 
             try {
-                const cloudApiKey = await convexClient.query(
-                    api.apiKey.getApiKey,
+                const cloudApiKey = await convexClient.action(
+                    api.apiKey.getDecryptedApiKey,
                     {},
                 );
                 await cloneCloudToLocal(

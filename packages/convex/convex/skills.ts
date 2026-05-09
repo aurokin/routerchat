@@ -1,4 +1,4 @@
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 import { paginationOptsValidator } from "convex/server";
 import { mutation, query } from "./_generated/server";
 import { isOwner, requireAuthUserId, requireUserMatches } from "./lib/authz";
@@ -9,6 +9,17 @@ import {
     ensureCloudUsageCounters,
 } from "./lib/cloud_usage";
 
+const skillDocValidator = v.object({
+    _id: v.id("skills"),
+    _creationTime: v.number(),
+    userId: v.id("users"),
+    localId: v.optional(v.string()),
+    name: v.string(),
+    description: v.string(),
+    prompt: v.string(),
+    createdAt: v.number(),
+});
+
 /**
  * Skill Operations
  *
@@ -18,6 +29,7 @@ import {
 // List all skills for a user
 export const listByUser = query({
     args: { userId: v.id("users") },
+    returns: v.array(skillDocValidator),
     handler: async (ctx, args) => {
         const authenticatedUserId = await requireAuthUserId(ctx);
         requireUserMatches(authenticatedUserId, args.userId);
@@ -35,6 +47,19 @@ export const listByUserPaginated = query({
         userId: v.id("users"),
         paginationOpts: paginationOptsValidator,
     },
+    returns: v.object({
+        page: v.array(skillDocValidator),
+        isDone: v.boolean(),
+        continueCursor: v.string(),
+        splitCursor: v.optional(v.union(v.null(), v.string())),
+        pageStatus: v.optional(
+            v.union(
+                v.null(),
+                v.literal("SplitRecommended"),
+                v.literal("SplitRequired"),
+            ),
+        ),
+    }),
     handler: async (ctx, args) => {
         const authenticatedUserId = await requireAuthUserId(ctx);
         requireUserMatches(authenticatedUserId, args.userId);
@@ -57,6 +82,7 @@ export const getByLocalId = query({
         userId: v.id("users"),
         localId: v.string(),
     },
+    returns: v.union(v.null(), skillDocValidator),
     handler: async (ctx, args) => {
         const authenticatedUserId = await requireAuthUserId(ctx);
         requireUserMatches(authenticatedUserId, args.userId);
@@ -81,6 +107,7 @@ export const create = mutation({
         prompt: v.string(),
         createdAt: v.optional(v.number()),
     },
+    returns: v.id("skills"),
     handler: async (ctx, args) => {
         const authenticatedUserId = await requireAuthUserId(ctx);
         requireUserMatches(authenticatedUserId, args.userId);
@@ -96,7 +123,11 @@ export const create = mutation({
 
         const usage = await ensureCloudUsageCounters(ctx, authenticatedUserId);
         if (usage.skillCount >= LIMITS.maxSkillsPerUser) {
-            throw new Error("Skill limit reached");
+            throw new ConvexError({
+                code: "LIMIT_REACHED",
+                message: "Skill limit reached",
+                resource: "skills",
+            });
         }
 
         const now = Date.now();
@@ -122,11 +153,16 @@ export const update = mutation({
         description: v.optional(v.string()),
         prompt: v.optional(v.string()),
     },
+    returns: v.null(),
     handler: async (ctx, args) => {
         const authenticatedUserId = await requireAuthUserId(ctx);
         const skill = await ctx.db.get(args.id);
         if (!isOwner(skill, authenticatedUserId)) {
-            throw new Error("Not found");
+            throw new ConvexError({
+                code: "NOT_FOUND",
+                message: "Skill not found",
+                resource: "skills",
+            });
         }
 
         assertMaxLen(args.name, LIMITS.maxSkillNameChars, "name");
@@ -142,22 +178,29 @@ export const update = mutation({
             Object.entries(updates).filter(([, value]) => value !== undefined),
         );
         await ctx.db.patch(id, filteredUpdates);
+        return null;
     },
 });
 
 // Delete a skill
 export const remove = mutation({
     args: { id: v.id("skills") },
+    returns: v.null(),
     handler: async (ctx, args) => {
         const authenticatedUserId = await requireAuthUserId(ctx);
         const skill = await ctx.db.get(args.id);
         if (!isOwner(skill, authenticatedUserId)) {
-            throw new Error("Not found");
+            throw new ConvexError({
+                code: "NOT_FOUND",
+                message: "Skill not found",
+                resource: "skills",
+            });
         }
 
         await ctx.db.delete(args.id);
         await applyCloudUsageDelta(ctx, authenticatedUserId, {
             skillCount: -1,
         });
+        return null;
     },
 });

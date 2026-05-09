@@ -8,6 +8,15 @@ import { authTables } from "@convex-dev/auth/server";
  * Mirrors the local IndexedDB structure with additional fields
  * for cloud-specific features (user association, storage references).
  */
+
+const skillSnapshotValidator = v.object({
+    id: v.string(),
+    name: v.string(),
+    description: v.string(),
+    prompt: v.string(),
+    createdAt: v.number(),
+});
+
 export default defineSchema({
     ...authTables,
     users: defineTable({
@@ -44,7 +53,6 @@ export default defineSchema({
         createdAt: v.number(),
         updatedAt: v.number(),
     })
-        .index("by_user", ["userId"])
         .index("by_user_updated", ["userId", "updatedAt"])
         .index("by_local_id", ["userId", "localId"]),
     messages: defineTable({
@@ -59,14 +67,13 @@ export default defineSchema({
         content: v.string(),
         contextContent: v.string(),
         thinking: v.optional(v.string()),
-        skill: v.optional(v.any()),
+        skill: v.optional(v.union(v.null(), skillSnapshotValidator)),
         modelId: v.optional(v.string()),
         thinkingLevel: v.optional(v.string()),
         searchLevel: v.optional(v.string()),
         attachmentIds: v.optional(v.array(v.string())),
         createdAt: v.number(),
     })
-        .index("by_chat", ["chatId"])
         .index("by_chat_created", ["chatId", "createdAt"])
         .index("by_user", ["userId"])
         .index("by_local_id", ["userId", "localId"]),
@@ -94,8 +101,13 @@ export default defineSchema({
         createdAt: v.number(),
     })
         .index("by_message", ["messageId"])
-        .index("by_user", ["userId"])
         .index("by_user_storage", ["userId", "storageId"])
         .index("by_user_created", ["userId", "createdAt"])
         .index("by_local_id", ["userId", "localId"]),
+    apiKeyAccess: defineTable({
+        userId: v.id("users"),
+        kind: v.union(v.literal("read"), v.literal("read_failed")),
+        reason: v.optional(v.string()),
+        accessedAt: v.number(),
+    }).index("by_user_accessed", ["userId", "accessedAt"]),
 });

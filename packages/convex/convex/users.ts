@@ -1,8 +1,9 @@
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 import {
     internalMutation,
     internalQuery,
     mutation,
+    type MutationCtx,
     query,
 } from "./_generated/server";
 import { getAuthUserId } from "@convex-dev/auth/server";
@@ -14,13 +15,47 @@ import {
     computeCloudChatCount,
     computeCloudMessageCount,
     computeCloudUsageCounters,
+    type CloudUsageCounters,
     ensureCloudUsageCounters,
     readCloudUsageCountersFromUser,
     zeroCloudUsageCounters,
 } from "./lib/cloud_usage";
+import type { Id } from "./_generated/dataModel";
+
+const userDocValidator = v.object({
+    _id: v.id("users"),
+    _creationTime: v.number(),
+    name: v.optional(v.string()),
+    image: v.optional(v.string()),
+    email: v.optional(v.string()),
+    emailVerificationTime: v.optional(v.number()),
+    phone: v.optional(v.string()),
+    phoneVerificationTime: v.optional(v.number()),
+    isAnonymous: v.optional(v.boolean()),
+    initialSync: v.optional(v.boolean()),
+    encryptedApiKey: v.optional(v.string()),
+    apiKeyNonce: v.optional(v.string()),
+    apiKeyUpdatedAt: v.optional(v.number()),
+    cloudChatCount: v.optional(v.number()),
+    cloudMessageCount: v.optional(v.number()),
+    cloudSkillCount: v.optional(v.number()),
+    cloudAttachmentCount: v.optional(v.number()),
+    cloudAttachmentBytes: v.optional(v.number()),
+    createdAt: v.optional(v.number()),
+    updatedAt: v.optional(v.number()),
+});
+
+const cloudUsageCountersValidator = v.object({
+    chatCount: v.number(),
+    messageCount: v.number(),
+    skillCount: v.number(),
+    attachmentCount: v.number(),
+    attachmentBytes: v.number(),
+});
 
 export const get = query({
     args: { id: v.id("users") },
+    returns: v.union(v.null(), userDocValidator),
     handler: async (ctx, args) => {
         const authenticatedUserId = await requireAuthUserId(ctx);
         requireUserMatches(authenticatedUserId, args.id);
@@ -30,6 +65,7 @@ export const get = query({
 
 export const getById = internalQuery({
     args: { id: v.id("users") },
+    returns: v.union(v.null(), userDocValidator),
     handler: async (ctx, args) => {
         return await ctx.db.get(args.id);
     },
@@ -37,13 +73,19 @@ export const getById = internalQuery({
 
 export const getCurrentUserId = query({
     args: {},
+    returns: v.union(v.null(), v.id("users")),
     handler: async (ctx) => {
-        return await getAuthUserId(ctx);
+        return (await getAuthUserId(ctx)) as Id<"users"> | null;
     },
 });
 
 export const getStorageUsage = query({
     args: { userId: v.id("users") },
+    returns: v.object({
+        bytes: v.number(),
+        messageCount: v.number(),
+        sessionCount: v.number(),
+    }),
     handler: async (ctx, args) => {
         const authenticatedUserId = await requireAuthUserId(ctx);
         requireUserMatches(authenticatedUserId, args.userId);
@@ -76,6 +118,7 @@ export const create = internalMutation({
     args: {
         email: v.optional(v.string()),
     },
+    returns: v.id("users"),
     handler: async (ctx, args) => {
         const now = Date.now();
         return await ctx.db.insert("users", {
@@ -94,10 +137,14 @@ export const create = internalMutation({
 
 export const resetCloudData = mutation({
     args: {},
+    returns: v.null(),
     handler: async (ctx) => {
-        const userId = await getAuthUserId(ctx);
+        const userId = (await getAuthUserId(ctx)) as Id<"users"> | null;
         if (!userId) {
-            throw new Error("Not authenticated");
+            throw new ConvexError({
+                code: "UNAUTHENTICATED",
+                message: "Not authenticated",
+            });
         }
 
         // Clear attachments first so we don't have to do nested deletions.
@@ -105,9 +152,9 @@ export const resetCloudData = mutation({
             () =>
                 ctx.db
                     .query("attachments")
-                    .withIndex("by_user", (q) => q.eq("userId", userId))
+                    .withIndex("by_user_created", (q) => q.eq("userId", userId))
                     .take(200),
-            async (attachment: any) => {
+            async (attachment) => {
                 await safeStorageDelete(ctx, attachment.storageId);
                 await ctx.db.delete(attachment._id);
             },
@@ -119,7 +166,7 @@ export const resetCloudData = mutation({
                     .query("messages")
                     .withIndex("by_user", (q) => q.eq("userId", userId))
                     .take(500),
-            async (message: any) => {
+            async (message) => {
                 await ctx.db.delete(message._id);
             },
         );
@@ -128,9 +175,9 @@ export const resetCloudData = mutation({
             () =>
                 ctx.db
                     .query("chats")
-                    .withIndex("by_user", (q) => q.eq("userId", userId))
+                    .withIndex("by_user_updated", (q) => q.eq("userId", userId))
                     .take(200),
-            async (chat: any) => {
+            async (chat) => {
                 await ctx.db.delete(chat._id);
             },
         );
@@ -141,20 +188,22 @@ export const resetCloudData = mutation({
                     .query("skills")
                     .withIndex("by_user", (q) => q.eq("userId", userId))
                     .take(200),
-            async (skill: any) => {
+            async (skill) => {
                 await ctx.db.delete(skill._id);
             },
         );
 
         await ctx.db.patch(
             userId,
-            cloudUsageCountersToPatch(zeroCloudUsageCounters()) as any,
+            cloudUsageCountersToPatch(zeroCloudUsageCounters()),
         );
+        return null;
     },
 });
 
 export const ensureUsageCounters = mutation({
     args: {},
+    returns: cloudUsageCountersValidator,
     handler: async (ctx) => {
         const userId = await requireAuthUserId(ctx);
         return await ensureCloudUsageCounters(ctx, userId);
@@ -162,14 +211,14 @@ export const ensureUsageCounters = mutation({
 });
 
 async function rebuildUsageCounters(
-    ctx: { db: { patch: (...args: any[]) => Promise<void> } },
-    userId: any,
-) {
-    const computed = await computeCloudUsageCounters(ctx as any, userId);
+    ctx: MutationCtx,
+    userId: Id<"users">,
+): Promise<CloudUsageCounters> {
+    const computed = await computeCloudUsageCounters(ctx, userId);
     await ctx.db.patch(userId, {
         ...cloudUsageCountersToPatch(computed),
         updatedAt: Date.now(),
-    } as any);
+    });
     return computed;
 }
 
@@ -177,23 +226,29 @@ async function rebuildUsageCounters(
 // This is intended for operations and should not be exposed to clients.
 export const rebuildUsageCountersForUser = internalMutation({
     args: { userId: v.id("users") },
+    returns: cloudUsageCountersValidator,
     handler: async (ctx, args) => {
-        return await rebuildUsageCounters(ctx as any, args.userId);
+        return await rebuildUsageCounters(ctx, args.userId);
     },
 });
 
 export const rebuildUsageCountersForEmail = internalMutation({
     args: { email: v.string() },
+    returns: cloudUsageCountersValidator,
     handler: async (ctx, args) => {
         const rawEmail = args.email.trim();
         if (!rawEmail) {
-            throw new Error("Email is required");
+            throw new ConvexError({
+                code: "FIELD_REQUIRED",
+                message: "Email is required",
+                fieldName: "email",
+            });
         }
 
         const candidates = Array.from(
             new Set([rawEmail, rawEmail.toLowerCase()]),
         );
-        let user: any = null;
+        let user = null;
         for (const email of candidates) {
             user = await ctx.db
                 .query("users")
@@ -202,10 +257,14 @@ export const rebuildUsageCountersForEmail = internalMutation({
             if (user) break;
         }
         if (!user) {
-            throw new Error("User not found");
+            throw new ConvexError({
+                code: "NOT_FOUND",
+                message: "User not found",
+                resource: "users",
+            });
         }
 
-        return await rebuildUsageCounters(ctx as any, user._id);
+        return await rebuildUsageCounters(ctx, user._id);
     },
 });
 
@@ -213,15 +272,20 @@ export const setInitialSync = mutation({
     args: {
         initialSync: v.boolean(),
     },
+    returns: v.null(),
     handler: async (ctx, args) => {
-        const userId = await getAuthUserId(ctx);
+        const userId = (await getAuthUserId(ctx)) as Id<"users"> | null;
         if (!userId) {
-            throw new Error("Not authenticated");
+            throw new ConvexError({
+                code: "UNAUTHENTICATED",
+                message: "Not authenticated",
+            });
         }
 
         await ctx.db.patch(userId, {
             initialSync: args.initialSync,
             updatedAt: Date.now(),
         });
+        return null;
     },
 });

@@ -34,19 +34,24 @@ const createLocalStorageMock = (): StorageMock => {
 const createClient = (
     mutationResponses: unknown[] = [],
     queryResponses: unknown[] = [],
+    actionResponses: unknown[] = [],
 ): {
     client: ConvexClientInterface;
     mutation: ReturnType<typeof mock>;
     query: ReturnType<typeof mock>;
+    action: ReturnType<typeof mock>;
 } => {
     let mutationIndex = 0;
     let queryIndex = 0;
+    let actionIndex = 0;
     const mutation = mock(async () => mutationResponses[mutationIndex++]);
     const query = mock(async () => queryResponses[queryIndex++]);
+    const action = mock(async () => actionResponses[actionIndex++]);
     return {
-        client: { mutation, query } as ConvexClientInterface,
+        client: { mutation, query, action } as ConvexClientInterface,
         mutation,
         query,
+        action,
     };
 };
 

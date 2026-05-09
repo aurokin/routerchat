@@ -1,3 +1,5 @@
+import type { Id } from "../_generated/dataModel";
+
 export async function drainBatches<T>(
     fetchBatch: () => Promise<T[]>,
     handle: (item: T) => Promise<void>,
@@ -24,11 +26,11 @@ export async function drainBatches<T>(
 }
 
 export async function safeStorageDelete(
-    ctx: { storage: { delete: (storageId: any) => Promise<void> } },
-    storageId: unknown,
+    ctx: { storage: { delete: (storageId: Id<"_storage">) => Promise<void> } },
+    storageId: Id<"_storage">,
 ): Promise<void> {
     try {
-        await ctx.storage.delete(storageId as any);
+        await ctx.storage.delete(storageId);
     } catch (error) {
         // Avoid turning cleanup into a hard failure. If something is already
         // deleted (or the storage backend is flaky), we still want DB cleanup to

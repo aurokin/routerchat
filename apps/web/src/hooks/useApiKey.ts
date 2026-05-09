@@ -1,6 +1,6 @@
 "use client";
 
-import { useQuery, useMutation, useConvexAuth } from "convex/react";
+import { useQuery, useMutation, useAction, useConvexAuth } from "convex/react";
 import { api } from "@convex/_generated/api";
 import { useIsConvexAvailable } from "@/contexts/ConvexProvider";
 import { useSync } from "@/contexts/SyncContext";
@@ -60,6 +60,9 @@ export function isApiKeyLoadingState(params: {
  * - Local mode: API key stored in localStorage only
  * - Cloud mode: API key stored in Convex (encrypted)
  * - Users can explicitly copy cloud data to local via settings
+ *
+ * The cloud-side decrypted key is fetched via a server action (not a reactive
+ * query) so each read is auditable and the plaintext is never subscribable.
  */
 export function useApiKey(): UseApiKeyReturn {
     const isConvexAvailable = useIsConvexAvailable();
@@ -88,8 +91,6 @@ export function useApiKey(): UseApiKeyReturn {
             setLocalApiKeyState(getLocalApiKey());
         };
 
-        // Defer to avoid synchronous setState in effect body (lint rule) and
-        // reduce the risk of cascading renders.
         if (!isCloudEnabled) {
             Promise.resolve().then(syncFromStorage);
         }
@@ -101,15 +102,53 @@ export function useApiKey(): UseApiKeyReturn {
         };
     }, [isCloudEnabled]);
 
-    // Cloud API key query (only fetched when cloud sync is enabled)
-    const cloudApiKey = useQuery(
-        api.apiKey.getApiKey,
-        isCloudEnabled ? undefined : "skip",
+    // Reactive flag for whether a cloud key exists (no plaintext exposure).
+    const hasCloudKey = useQuery(
+        api.apiKey.hasApiKey,
+        isCloudEnabled ? {} : "skip",
     );
 
-    // Cloud API key mutations
+    const getDecryptedApiKey = useAction(api.apiKey.getDecryptedApiKey);
     const setCloudApiKeyMutation = useMutation(api.apiKey.setApiKey);
     const clearCloudApiKeyMutation = useMutation(api.apiKey.clearApiKey);
+
+    // `undefined` = not loaded yet; `null` = no key; string = loaded key.
+    const [cloudApiKey, setCloudApiKey] = useState<string | null | undefined>(
+        undefined,
+    );
+
+    // Fetch the decrypted key when we know one exists; reset when not.
+    useEffect(() => {
+        if (!isCloudEnabled) {
+            setCloudApiKey(undefined);
+            return;
+        }
+        if (hasCloudKey === undefined) {
+            // hasApiKey query still loading
+            return;
+        }
+        if (hasCloudKey === false) {
+            setCloudApiKey(null);
+            return;
+        }
+
+        let cancelled = false;
+        setCloudApiKey(undefined);
+        getDecryptedApiKey({})
+            .then((value) => {
+                if (cancelled) return;
+                setCloudApiKey(value);
+            })
+            .catch((error) => {
+                if (cancelled) return;
+                console.error("Failed to fetch decrypted API key:", error);
+                setCloudApiKey(null);
+            });
+
+        return () => {
+            cancelled = true;
+        };
+    }, [isCloudEnabled, hasCloudKey, getDecryptedApiKey]);
 
     // Determine the effective API key based on active storage mode
     const apiKey = useMemo(
@@ -130,6 +169,7 @@ export function useApiKey(): UseApiKeyReturn {
             if (isCloudEnabled) {
                 try {
                     await setCloudApiKeyMutation({ apiKey: key });
+                    setCloudApiKey(key);
                 } catch (error) {
                     console.error("Failed to save API key to cloud:", error);
                     throw error;
@@ -147,6 +187,7 @@ export function useApiKey(): UseApiKeyReturn {
         if (isCloudEnabled) {
             try {
                 await clearCloudApiKeyMutation();
+                setCloudApiKey(null);
             } catch (error) {
                 console.error("Failed to clear API key from cloud:", error);
                 throw error;
