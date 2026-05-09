@@ -85,6 +85,7 @@ A template lives at `apps/web/.env.example`.
 - `NEXT_PUBLIC_CONVEX_URL` - Convex deployment URL (from the Convex dashboard). When unset, RouterChat runs local-only.
 - `CANONICAL_HOST` - Optional canonical host redirect enforced by web middleware (e.g. `CANONICAL_HOST=www.example.com` to redirect apex requests to `www`).
 - `DISABLE_CSP` - Optional debug flag (preview/prod only). Set to `true` to disable only the `Content-Security-Policy` header. Avoid enabling this in production.
+- `PLAYWRIGHT_BASE_URL` - Optional override for the Playwright test runner (defaults to `http://127.0.0.1:4040`). Used only by `bun run --cwd apps/web test:e2e`.
 
 #### Convex CLI (`packages/convex`)
 

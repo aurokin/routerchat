@@ -28,6 +28,7 @@
         "typecheck": "tsc --noEmit",
         "lint": "eslint .",
         "test": "vitest run",
+        "coverage": "vitest run --coverage",
         "health": "bun run format && bun run typecheck && bun run lint && bun run test"
     },
     "dependencies": {
@@ -37,6 +38,7 @@
     },
     "devDependencies": {
         "@types/bun": "^1.3.13",
+        "convex-test": "^0.0.51",
         "eslint": "^10.3.0",
         "typescript": "^6.0.3",
         "typescript-eslint": "^8.59.2"

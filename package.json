@@ -34,6 +34,7 @@
         "test:web": "bun run --cwd apps/web test",
         "test:shared": "bun run --cwd packages/shared test",
         "test:convex": "bun run --cwd packages/convex test",
+        "coverage": "bun run --cwd apps/web coverage && bun run --cwd packages/shared coverage && bun run --cwd packages/convex coverage",
         "typecheck": "bun run --cwd apps/web typecheck && bun run --cwd packages/shared typecheck && bun run --cwd packages/convex typecheck",
         "typecheck:web": "bun run --cwd apps/web typecheck",
         "typecheck:shared": "bun run --cwd packages/shared typecheck",

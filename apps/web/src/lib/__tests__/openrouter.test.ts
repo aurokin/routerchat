@@ -6,16 +6,6 @@ const fetchMock = vi.fn(
     },
 );
 
-(
-    globalThis as unknown as {
-        fetch?: typeof fetch & {
-            mockClear: () => void;
-            mockImplementation: (fn: any) => void;
-            mock: { calls: any[][] };
-        };
-    }
-).fetch = fetchMock as any;
-
 import { SupportedParameter } from "@/lib/types";
 import {
     fetchModels,
@@ -47,6 +37,17 @@ const mockModel = {
 describe("openrouter.ts", () => {
     beforeEach(() => {
         fetchMock.mockClear();
+        // Reassign per-test so MSW's earlier `beforeAll` patch of
+        // globalThis.fetch doesn't shadow ours.
+        (
+            globalThis as unknown as {
+                fetch?: typeof fetch & {
+                    mockClear: () => void;
+                    mockImplementation: (fn: any) => void;
+                    mock: { calls: any[][] };
+                };
+            }
+        ).fetch = fetchMock as any;
     });
 
     describe("fetchModels", () => {

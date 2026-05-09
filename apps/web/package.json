@@ -12,6 +12,9 @@
         "typecheck": "tsc --noEmit",
         "lint": "eslint .",
         "test": "vitest run",
+        "coverage": "vitest run --coverage",
+        "test:e2e": "playwright test",
+        "test:e2e:install": "playwright install --with-deps chromium",
         "health": "bun run format && bun run typecheck && bun run lint && bun run test"
     },
     "dependencies": {
@@ -32,8 +35,13 @@
         "uuid": "^14.0.0"
     },
     "devDependencies": {
+        "@axe-core/playwright": "^4.11.3",
+        "@playwright/test": "^1.59.1",
         "@tailwindcss/postcss": "^4.3.0",
         "@tailwindcss/typography": "^0.5.19",
+        "@testing-library/jest-dom": "^6.9.1",
+        "@testing-library/react": "^16.3.2",
+        "@testing-library/user-event": "^14.6.1",
         "@total-typescript/ts-reset": "^0.6.1",
         "@types/bun": "^1.3.13",
         "@types/node": "^25.6.2",
@@ -42,6 +50,8 @@
         "eslint": "^10.3.0",
         "eslint-plugin-react": "^7.37.5",
         "eslint-plugin-react-hooks": "^7.1.1",
+        "jsdom": "^29.1.1",
+        "msw": "^2.14.5",
         "postcss": "^8.5.14",
         "tailwindcss": "^4.3.0",
         "typescript": "^6.0.3",

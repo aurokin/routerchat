@@ -29,7 +29,7 @@ const EXCLUDED_DIR_NAMES = new Set([
     "_generated",
 ]);
 
-const STANDARD_ENV_VARS = new Set(["NODE_ENV"]);
+const STANDARD_ENV_VARS = new Set(["NODE_ENV", "CI"]);
 
 const RE_PROCESS_ENV_DOT = /process\.env\.([A-Z0-9_]+)/g;
 const RE_PROCESS_ENV_BRACKET = /process\.env\[['\"]([A-Z0-9_]+)['\"]\]/g;

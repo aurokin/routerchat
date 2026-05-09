@@ -14,5 +14,5 @@
         "jsx": "preserve",
         "types": ["bun"]
     },
-    "include": ["src/**/*", "vitest.config.ts"]
+    "include": ["src/**/*", "vitest.config.ts", "vitest.setup.ts"]
 }

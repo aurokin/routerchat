@@ -5,5 +5,18 @@ export default defineConfig({
         name: "shared",
         include: ["src/**/*.test.ts"],
         environment: "node",
+        setupFiles: ["./vitest.setup.ts"],
+        coverage: {
+            provider: "v8",
+            reporter: ["text-summary", "lcov"],
+            reportsDirectory: "./coverage",
+            include: ["src/**/*.ts"],
+            exclude: [
+                "src/**/*.test.ts",
+                "src/**/__tests__/**",
+                "src/test-utils/**",
+                "src/**/types/**",
+            ],
+        },
     },
 });

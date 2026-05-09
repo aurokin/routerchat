@@ -1,2 +1,10 @@
 # Generated Convex files
 packages/convex/convex/_generated/**
+
+# Coverage output
+**/coverage/**
+
+# Playwright artifacts
+**/test-results/**
+**/playwright-report/**
+**/playwright/.cache/**
