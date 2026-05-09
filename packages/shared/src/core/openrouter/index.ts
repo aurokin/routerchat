@@ -124,7 +124,12 @@ function applyStreamDelta(
     let parsed = false;
 
     try {
-        const parsedChunk = JSON.parse(data);
+        const parsedChunk = JSON.parse(data) as Record<string, unknown> & {
+            choices?: Array<{
+                delta?: Record<string, unknown>;
+                finish_reason?: string;
+            }>;
+        };
         parsed = true;
 
         const streamError = parseMidStreamError(parsedChunk);
@@ -133,22 +138,23 @@ function applyStreamDelta(
         }
 
         const choice = parsedChunk.choices?.[0];
-        if (choice?.delta?.content) {
-            contentDelta = choice.delta.content;
+        const delta = choice?.delta;
+        if (typeof delta?.content === "string") {
+            contentDelta = delta.content;
             onChunk(contentDelta);
         }
-        if (choice?.delta?.reasoning_details) {
+        if (delta?.reasoning_details) {
             const reasoningText = extractReasoningText(
-                choice.delta.reasoning_details as ReasoningDetailChunk[],
+                delta.reasoning_details as ReasoningDetailChunk[],
             );
             if (reasoningText) {
                 thinkingDelta += reasoningText;
                 onChunk("", reasoningText);
             }
         }
-        if (choice?.delta?.thinking) {
-            thinkingDelta += choice.delta.thinking;
-            onChunk("", choice.delta.thinking);
+        if (typeof delta?.thinking === "string") {
+            thinkingDelta += delta.thinking;
+            onChunk("", delta.thinking);
         }
         if (choice?.finish_reason && choice.finish_reason !== "error") {
             streamComplete = true;
@@ -577,7 +583,7 @@ export async function fetchModels(): Promise<OpenRouterModel[]> {
         throw new OpenRouterApiErrorImpl(error);
     }
 
-    const data = await response.json();
+    const data = (await response.json()) as { data: OpenRouterApiModel[] };
     return data.data
         .filter((model: OpenRouterApiModel) => supportsTextModality(model))
         .map((model: OpenRouterApiModel) => {
@@ -778,7 +784,7 @@ export async function sendMessage(
             throw new OpenRouterApiErrorImpl(error);
         }
 
-        return response.json();
+        return (await response.json()) as ChatCompletionResponse;
     }
 }
 

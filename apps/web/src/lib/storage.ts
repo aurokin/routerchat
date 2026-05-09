@@ -147,7 +147,7 @@ export function getFavoriteModels(): string[] {
     if (typeof window === "undefined") return [];
     try {
         const stored = localStorage.getItem(STORAGE_KEYS.FAVORITE_MODELS);
-        return stored ? JSON.parse(stored) : [];
+        return stored ? (JSON.parse(stored) as string[]) : [];
     } catch {
         return [];
     }
@@ -209,7 +209,7 @@ export function getSkills(): Skill[] {
     if (typeof window === "undefined") return [];
     try {
         const stored = localStorage.getItem(STORAGE_KEYS.SKILLS);
-        return stored ? JSON.parse(stored) : [];
+        return stored ? (JSON.parse(stored) as Skill[]) : [];
     } catch {
         return [];
     }
@@ -314,7 +314,7 @@ export function getSyncMetadata(): SyncMetadata {
     try {
         const stored = localStorage.getItem(STORAGE_KEYS.SYNC_METADATA);
         if (stored) {
-            const parsed = JSON.parse(stored);
+            const parsed = JSON.parse(stored) as Partial<SyncMetadata>;
             // Validate and merge with defaults to ensure all fields exist
             return {
                 ...DEFAULT_SYNC_METADATA,

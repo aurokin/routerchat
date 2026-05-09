@@ -376,7 +376,7 @@ describe("openrouter.ts", () => {
 
             const callArg = JSON.parse(
                 (fetchMock.mock.calls[0]![1] as { body?: string }).body ?? "{}",
-            );
+            ) as Record<string, unknown> & { plugins?: unknown };
             expect(callArg.reasoning).toEqual({ effort: "high" });
         });
 
@@ -412,7 +412,7 @@ describe("openrouter.ts", () => {
 
             const callArg = JSON.parse(
                 (fetchMock.mock.calls[0]![1] as { body?: string }).body ?? "{}",
-            );
+            ) as Record<string, unknown> & { plugins?: unknown };
             expect(callArg.reasoning).toBeUndefined();
         });
 
@@ -446,7 +446,7 @@ describe("openrouter.ts", () => {
 
             const callArg = JSON.parse(
                 (fetchMock.mock.calls[0]![1] as { body?: string }).body ?? "{}",
-            );
+            ) as Record<string, unknown> & { plugins?: unknown };
             expect(callArg.model).toBe("anthropic/claude-3-5-sonnet");
             expect(callArg.plugins).toEqual([{ id: "web", max_results: 6 }]);
         });
@@ -492,7 +492,7 @@ describe("openrouter.ts", () => {
 
             const callArg = JSON.parse(
                 (fetchMock.mock.calls[0]![1] as { body?: string }).body ?? "{}",
-            );
+            ) as Record<string, unknown> & { plugins?: unknown };
             expect(callArg.plugins).toEqual([{ id: "web", max_results: 3 }]);
         });
 
@@ -537,7 +537,7 @@ describe("openrouter.ts", () => {
 
             const callArg = JSON.parse(
                 (fetchMock.mock.calls[0]![1] as { body?: string }).body ?? "{}",
-            );
+            ) as Record<string, unknown> & { plugins?: unknown };
             expect(callArg.plugins).toEqual([{ id: "web", max_results: 10 }]);
         });
 
@@ -582,7 +582,7 @@ describe("openrouter.ts", () => {
 
             const callArg = JSON.parse(
                 (fetchMock.mock.calls[0]![1] as { body?: string }).body ?? "{}",
-            );
+            ) as Record<string, unknown> & { plugins?: unknown };
             expect(callArg.plugins).toBeUndefined();
         });
 

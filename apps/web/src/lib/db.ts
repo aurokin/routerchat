@@ -87,7 +87,7 @@ export function getDB(): Promise<IDBPDatabase<ChatDB>> {
                                 if (skill) {
                                     updatedMessage.skill = JSON.parse(
                                         JSON.stringify(skill),
-                                    );
+                                    ) as Skill;
                                 }
                             }
 

@@ -270,7 +270,7 @@ describe("storage.ts getFavoriteModels", () => {
         let result: string[] = [];
         try {
             const stored = mockGetItem(STORAGE_KEYS.FAVORITE_MODELS);
-            result = stored ? JSON.parse(stored) : [];
+            result = stored ? (JSON.parse(stored) as typeof result) : [];
         } catch {
             result = [];
         }
@@ -284,7 +284,7 @@ describe("storage.ts getFavoriteModels", () => {
         let result: string[] = [];
         try {
             const stored = mockGetItem(STORAGE_KEYS.FAVORITE_MODELS);
-            result = stored ? JSON.parse(stored) : [];
+            result = stored ? (JSON.parse(stored) as typeof result) : [];
         } catch {
             result = [];
         }
@@ -296,7 +296,7 @@ describe("storage.ts getFavoriteModels", () => {
         let result: string[] = [];
         try {
             const stored = mockGetItem(STORAGE_KEYS.FAVORITE_MODELS);
-            result = stored ? JSON.parse(stored) : [];
+            result = stored ? (JSON.parse(stored) as typeof result) : [];
         } catch {
             result = [];
         }
@@ -326,7 +326,7 @@ describe("storage.ts getSkills", () => {
         let result: Skill[] = [];
         try {
             const stored = mockGetItem(STORAGE_KEYS.SKILLS);
-            result = stored ? JSON.parse(stored) : [];
+            result = stored ? (JSON.parse(stored) as typeof result) : [];
         } catch {
             result = [];
         }
@@ -347,7 +347,7 @@ describe("storage.ts getSkills", () => {
         let result: Skill[] = [];
         try {
             const stored = mockGetItem(STORAGE_KEYS.SKILLS);
-            result = stored ? JSON.parse(stored) : [];
+            result = stored ? (JSON.parse(stored) as typeof result) : [];
         } catch {
             result = [];
         }
@@ -360,7 +360,7 @@ describe("storage.ts getSkills", () => {
         let result: Skill[] = [];
         try {
             const stored = mockGetItem(STORAGE_KEYS.SKILLS);
-            result = stored ? JSON.parse(stored) : [];
+            result = stored ? (JSON.parse(stored) as typeof result) : [];
         } catch {
             result = [];
         }

@@ -587,8 +587,8 @@ export function ChatWindow() {
                 ? `${skillForMessage.prompt}\n\nUser: ${content}`
                 : content;
 
-            const clonedSkill = skillForMessage
-                ? JSON.parse(JSON.stringify(skillForMessage))
+            const clonedSkill: Skill | null = skillForMessage
+                ? (JSON.parse(JSON.stringify(skillForMessage)) as Skill)
                 : null;
 
             // Generate a stable message ID for attachments
