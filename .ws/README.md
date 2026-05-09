@@ -29,7 +29,7 @@ Working set of implementation plans for the post-OSS-launch refactor. These file
 | W1  | `W1-quality-gates.md` | [x] complete                                                                  |
 | W2  | `W2-type-safety.md`   | [x] complete                                                                  |
 | W3  | `W3-convex.md`        | [~] mechanical + security shipped; components deferred (need live deployment) |
-| W4  | `W4-openrouter.md`    | not started                                                                   |
+| W4  | `W4-openrouter.md`    | [~] split + deprecation shipped; Wave 2 features deferred (UI scope)          |
 | W5  | `W5-testing.md`       | not started                                                                   |
 | W6  | `W6-architecture.md`  | not started                                                                   |
 

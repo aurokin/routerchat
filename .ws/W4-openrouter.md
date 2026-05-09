@@ -1,146 +1,98 @@
 # W4 · OpenRouter Modernization
 
-**Goal:** split the 809-LOC monolith, drop deprecated forms, ship the high-impact features (tool calling, prompt caching, cost reporting, structured outputs).
+**Goal:** split the 815-LOC monolith, drop deprecated forms, ship the high-impact features (tool calling, prompt caching, cost reporting, structured outputs).
 
 **Wave:** 1 (split + deprecation fixes) → 2 (features).
-**Status:** not started.
+**Status:** [~] Wave 1 shipped (split + deprecation). Wave 2 features still open.
 **Depends on:** W0 (clean baseline). Parallelizable with W3.
 
-## Current state (from audit)
+## Current state (post-split)
 
-- Single 809-LOC file: `packages/shared/src/core/openrouter/index.ts`.
-- `apps/web/src/lib/openrouter.ts` is a 47-line re-export shim — keep, but `OPENROUTER_API_BASE:47` is dead code.
-- **Three parallel SSE parsers** in the file (`consumeStreamText`, `createSseParser`, `sendMessageWithXhr` with its own copy).
-- Endpoints used: `POST /chat/completions`, `GET /models`, `GET /key` (boolean only).
-- Wired: streaming, `reasoning.effort` (with custom `xhigh`), `delta.reasoning_details` + legacy `delta.thinking`, image input (base64 only), legacy `plugins:[{id:"web", max_results}]`.
-- Not used: tool calling, prompt caching, structured outputs, generation cost lookup, provider routing, fallback `models[]`, PDF input, image URL passthrough, attribution headers.
-- Custom `effort: "xhigh"` is not in OpenRouter's documented enum.
+- Single 815-LOC file replaced by a 9-file structure under `packages/shared/src/core/openrouter/` (see Tasks ↓).
+- The 3 parallel SSE parsers are now one (`createSseParser` in `streaming.ts`).
+- Dead `OPENROUTER_API_BASE` constant in `apps/web/src/lib/openrouter.ts` removed.
+- Web search migrated from deprecated `plugins:[{id:"web", max_results}]` to documented `tools:[{type:"openrouter:web_search", parameters:{...}}]`.
+- Custom `reasoning.effort: "xhigh"` is folded to documented `"high"` at the request boundary; UI keeps `"xhigh"` as a distinct user-facing tier.
+- Attribution headers `HTTP-Referer` and `X-Title` are now sent on every request.
+- `stream_options.include_usage: true` is set on streaming requests so the final SSE chunk carries `usage`.
+- Streaming responses now report the **real** `id`, `model`, `created`, `usage`, and `finish_reason` reported by the server. We no longer fabricate `id: "streaming"` or zero-usage placeholders.
+- `delta.thinking` legacy branch demoted to defensive fallback only — modern providers send `delta.reasoning_details[]`.
 
 ## Tasks
 
-### Split the monolith (Wave 1, no behavior change)
-- [ ] New file structure under `packages/shared/src/core/openrouter/`:
-  ```
-  request-builder.ts   request body assembly + headers + attribution
-  streaming.ts         single SSE parser (delete the 3 parallel impls)
-  models.ts            GET /models, parameter detection
-  generation.ts        GET /generation, GET /credits, GET /key (full info)
-  types.ts             request/response types, reasoning_details, tool_calls
-  cache-control.ts     prompt caching markers
-  plugins/
-    web-search.ts      modern openrouter:web_search server-tool
-    file-parser.ts     PDF/document inputs
-    tools.ts           function-call tool registry & loop
-  index.ts             re-export façade
-  ```
-- [ ] Delete dead `OPENROUTER_API_BASE` constant in `apps/web/src/lib/openrouter.ts:47`.
-- [ ] All existing tests remain green during the split (no behavior change).
+### Split the monolith (Wave 1, no behavior change) — landed
 
-### Deprecation fixes (Wave 1, surface-visible but minor)
-- [ ] Migrate `plugins:[{id:"web", max_results}]` → `tools:[{type:"openrouter:web_search", parameters:{max_results, search_context_size, user_location}}]`.
-- [ ] Surface `usage.server_tool_use.web_search_requests` in the cost UI.
-- [ ] Map custom `reasoning.effort: "xhigh"` → documented `"high"` (Anthropic/Gemini/Qwen tiers also accept reasoning.max_tokens — handle both per provider).
-- [ ] Remove `delta.thinking` legacy branch as primary path; keep as defensive fallback only.
-- [ ] Add attribution headers `HTTP-Referer: https://github.com/aurokin/routerchat` (or app domain) and `X-Title: RouterChat` to every request.
-- [ ] Add `stream_options.include_usage: true` to streaming requests.
-- [ ] Capture final stream chunk's `usage` instead of fabricating zero-usage placeholder.
-- [ ] Stop fabricating `id: "streaming"` — let the final chunk's id populate the response.
+- [x] New file structure under `packages/shared/src/core/openrouter/`:
+    ```
+    constants.ts          API base URL, attribution constants, web-search system guidance
+    types.ts              all request/response types + ReasoningDetailChunk, helpers
+    error.ts              OpenRouterApiErrorImpl class
+    headers.ts            buildHeaders({apiKey, json}) — bearer + attribution
+    streaming.ts          single SSE parser (consolidated 3 parallel impls)
+    request-builder.ts    body assembly + buildMessageContent for attachments
+    web-search.ts         modern openrouter:web_search server-tool builder
+    reasoning.ts          ThinkingLevel → ReasoningEffort mapping, xhigh→high fold
+    models.ts             GET /models with vision/text-modality filtering
+    key.ts                validateApiKey
+    send-message.ts       sendMessage orchestrator + XHR fallback
+    index.ts              re-export façade
+    ```
+- [x] Dead `OPENROUTER_API_BASE` constant in `apps/web/src/lib/openrouter.ts:47` removed.
+- [x] All existing tests remain green after the split (assertions updated for the new tools-based shape and real-id streaming behavior).
 
-### High-impact features (Wave 2, ranked by user payoff)
+### Deprecation fixes (Wave 1, surface-visible but minor) — landed
 
-#### 1. Tool calling
-- [ ] `tools.ts`: tool registry interface (`ToolDefinition` with `name`, `description`, JSON schema).
-- [ ] Request injection: when tools are configured, set `tools: [...]` and optional `tool_choice`, `parallel_tool_calls`.
-- [ ] Streaming reconstruction: accumulate `delta.tool_calls[i].function.{name, arguments}` by index; partial JSON `arguments` arriving piecewise must be string-concat'd before `JSON.parse`.
-- [ ] Tool-result message round-trip: `{role:"tool", tool_call_id, content}` with proper schema.
-- [ ] `finish_reason:"tool_calls"` handler: loop instead of finishing.
-- [ ] Built-in server-tool support: `openrouter:web_search`, `openrouter:web_fetch`, `openrouter:datetime`, `openrouter:image_generation`.
-- [ ] UI surface: tool list in chat composer, per-call result preview, optional "approve before run" mode.
-- [ ] Persist tool-call deltas + results on assistant messages so reload reproduces state.
+- [x] Migrated `plugins:[{id:"web", max_results}]` → `tools:[{type:"openrouter:web_search", parameters:{max_results, search_context_size}}]`.
+- [-] Surface `usage.server_tool_use.web_search_requests` in the cost UI — type plumbing in place (`UsageDetails.server_tool_use`); UI surface deferred to W4 Wave 2 alongside cost reporting.
+- [x] Map custom `reasoning.effort: "xhigh"` → documented `"high"` at the request boundary. The UI tier `"xhigh"` is preserved as a distinct user choice.
+- [x] Demote `delta.thinking` legacy branch from primary path to defensive fallback (only consulted when `delta.reasoning_details` is absent).
+- [x] Add attribution headers `HTTP-Referer: https://github.com/aurokin/routerchat` and `X-Title: RouterChat` to every request (chat completions, models, key, XHR fallback).
+- [x] Add `stream_options.include_usage: true` to streaming requests.
+- [x] Capture final stream chunk's `usage` (and `id`, `model`, `created`, `finish_reason`) instead of fabricating zero-usage placeholders.
+- [x] Stop fabricating `id: "streaming"` — the response carries whatever id the server emitted (empty string when none was streamed).
 
-#### 2. Prompt caching
-- [ ] `cache-control.ts`: helpers to mark message-content blocks with `cache_control: {type:"ephemeral", ttl:"1h"}`.
-- [ ] Strategy: cache long system prompts, cache historical doc context (file inputs), cache skill prompts.
-- [ ] Provider-specific awareness:
-  - Anthropic / Qwen: explicit breakpoints required.
-  - OpenAI / Gemini / DeepSeek / Grok: auto-cache, no markers needed.
-- [ ] Surface savings via `usage.prompt_tokens_details.cached_tokens` and `usage.cache_discount`.
-- [ ] UI: "🟢 cached N tokens" badge per message; running session total saved.
+### High-impact features (Wave 2, ranked by user payoff) — DEFERRED
 
-#### 3. Generation cost reporting
-- [ ] Persist `response.id` on every assistant message.
-- [ ] `generation.ts`: `getGeneration(id)` calling `GET /generation?id=...`.
-- [ ] Returned fields: `total_cost`, `cache_discount`, `native_tokens_{prompt,completion,reasoning,cached}`, `provider_name`, `latency`, `generation_time`.
-- [ ] UI: per-message cost badge + provider chip; session aggregate cost.
-- [ ] Capture `response.usage.cost` directly when available (newer responses include it inline).
+The Wave 2 feature set carries substantial UI scope (cost badges, tool-call UI, structured-output toggles, provider-routing settings, PDF input handling, key-info pane). They're individually large and need real OpenRouter smoke tests, so they're tracked separately and will land in follow-up commits as each feature's UI design solidifies.
 
-#### 4. Structured outputs
-- [ ] Support `response_format: {type:"json_schema", json_schema:{name, strict:true, schema}}` in request builder.
-- [ ] Add new `SupportedParameter.StructuredOutputs` flag in `packages/shared/src/core/models/index.ts`.
-- [ ] Internal use: skill auto-suggestion, model auto-selection, anything else where the app currently parses free-form text.
-- [ ] Optional UI exposure: dev/power-user toggle to constrain output to a JSON schema.
+- [ ]   1. Tool calling
+- [ ]   2. Prompt caching
+- [ ]   3. Generation cost reporting (foundation laid: `UsageDetails.cost`, `cache_discount`, `prompt_tokens_details`; needs `getGeneration` helper + UI)
+- [ ]   4. Structured outputs
+- [ ]   5. Reasoning fidelity (persist + replay `reasoning_details[]`)
+- [ ]   6. Provider routing
+- [ ]   7. PDF / document inputs
+- [ ]   8. Image URL passthrough
+- [ ]   9. `/key` info pane (replace boolean `validateApiKey` with full `getKeyInfo`)
+- [ ]   10. `/credits` balance
 
-#### 5. Reasoning fidelity
-- [ ] Persist `reasoning_details[]` on assistant messages (full structured shape, not just text).
-- [ ] Replay unmodified on subsequent turns when continuing a tool-use conversation (per docs, sequence must match).
-- [ ] Handle `reasoning.encrypted` opaquely (passthrough only).
-- [ ] Add `reasoning.exclude` toggle for users who want hidden reasoning.
+### Models metadata enrichment — DEFERRED
 
-#### 6. Provider routing
-- [ ] Per-session settings UI: `provider.sort` (`price` | `throughput` | `latency`), `provider.allow_fallbacks`, `provider.zdr`, `provider.max_price`, `provider.only`, `provider.ignore`.
-- [ ] Model suffixes: `:nitro` / `:floor` shortcuts.
-- [ ] Fallback `models: [...]` array — let users set "if X fails, try Y, then Z".
-
-#### 7. PDF / document inputs
-- [ ] Accept `{type:"file", file:{filename, file_data}}` content blocks.
-- [ ] `plugins/file-parser.ts`: parser plugin config (`{id:"file-parser", pdf:{engine:"native"|"mistral-ocr"|"cloudflare-ai"}}`). Default to `native` (free).
-- [ ] Reuse parsed annotations across turns to avoid reparsing.
-- [ ] Attachment validation: extend MIME allowlist to include `application/pdf`.
-
-#### 8. Image URL passthrough
-- [ ] `image_url.url` accepts plain HTTPS, not just data URIs.
-- [ ] Fast-path attachments that are already cloud-hosted (Convex `_storage` URLs) without re-encoding.
-
-#### 9. `/key` info pane
-- [ ] Replace boolean `validateApiKey` with full `getKeyInfo` returning `label`, `usage`, `limit`, `is_free_tier`, `rate_limit.{requests, interval}`.
-- [ ] Settings UI: render the key's permissions and current usage.
-
-#### 10. `/credits` balance
-- [ ] `generation.ts`: `getCredits()` calling `GET /credits`.
-- [ ] Settings UI: show `total_credits - total_usage`; warn when < $1 to prevent 402s.
-- [ ] Note: docs call this a Management API key endpoint; gate UI on key type if regular keys 401.
-
-### Models metadata enrichment
-- [ ] Pull `pricing` (prompt/completion per-token), `context_length`, `top_provider.context_length`, `architecture.input_modalities` for `audio` flag, `description`, `expiration_date`, `knowledge_cutoff` from `GET /models`.
+- [ ] Pull `pricing`, `context_length`, `top_provider.context_length`, `architecture.input_modalities` for `audio` flag, `description`, `expiration_date`, `knowledge_cutoff` from `GET /models`.
 - [ ] Surface in the model selector UI.
 
-### Errors
+### Errors — DEFERRED
+
 - [ ] `packages/shared/src/core/errors/index.ts`: add 413 (payload too large) and 422 (unprocessable) per docs.
 
 ## Files affected
 
-- `packages/shared/src/core/openrouter/*` (full restructure — see split layout above).
-- `apps/web/src/lib/openrouter.ts` (drop dead constant; otherwise stable façade).
-- `packages/shared/src/core/models/index.ts` (`SupportedParameter` enum extensions: `StructuredOutputs`, `Caching`, `File`).
-- `packages/shared/src/core/errors/index.ts` (413, 422).
-- `apps/web/src/components/chat/*` (tool-call surface, cost badges, cache badges, reasoning UI).
-- `apps/web/src/components/settings/*` (key info pane, credits balance, provider routing).
-- `packages/convex/convex/messages.ts` (persist `responseId`, `reasoning_details`, `tool_calls`).
-- Schema additions on `messages` table.
+- `packages/shared/src/core/openrouter/*` — full restructure (12 new files, original `index.ts` shrunk to a re-export façade).
+- `apps/web/src/lib/openrouter.ts` — dropped dead constant; otherwise stable façade.
+- `apps/web/src/lib/__tests__/openrouter.test.ts` — assertions updated for `tools[]` shape + real-id streaming.
+- `packages/shared/src/core/__tests__/openrouter.test.ts` — same.
 
 ## Validation
 
-- [ ] All existing tests still pass after the split (Wave 1).
-- [ ] New tests for each parser/builder unit added.
-- [ ] Manual smoke per feature against a real OpenRouter key:
-  - Tool calling: ask the model to use `openrouter:web_search`, verify result lands.
-  - Prompt caching: send the same long system prompt twice; verify second has `cached_tokens > 0`.
-  - Cost reporting: send a message; check the cost badge matches `/generation` lookup.
-  - Structured outputs: request a constrained JSON; verify schema strictness rejects malformed.
+- [x] All 747 existing tests still pass (assertions updated where the wire shape genuinely changed).
+- [x] `bun run typecheck` clean across all 3 workspaces.
+- [x] `bun run lint` — 0 errors, 168 warnings (pre-existing tracked debt).
+- [x] `bun run --cwd apps/web build` — production build succeeds.
+- [ ] Manual smoke per feature against a real OpenRouter key — pending (requires running app + valid key).
 
 ## Risks
 
-- Tool-call streaming partial-JSON accumulation has historical sharp edges; cover with unit tests for indexed `delta.tool_calls`.
+- Tool-call streaming partial-JSON accumulation has historical sharp edges; cover with unit tests for indexed `delta.tool_calls` when feature lands.
 - Prompt caching has provider-specific behavior; UI must not over-promise.
 - Reasoning sequence preservation is required for tool-use round-trips; if we drop a single chunk, follow-up requests fail.
 - Generation `/generation` lookup is async (eventual consistency, ~1-3s lag); UI shouldn't block on it.

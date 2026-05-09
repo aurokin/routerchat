@@ -43,5 +43,3 @@ export {
     extractReasoningText,
 };
 export { OpenRouterApiErrorImpl as OpenRouterApiError };
-
-const OPENROUTER_API_BASE = "https://openrouter.ai/api/v1";

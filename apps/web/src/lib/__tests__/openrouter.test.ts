@@ -446,12 +446,20 @@ describe("openrouter.ts", () => {
 
             const callArg = JSON.parse(
                 (fetchMock.mock.calls[0]![1] as { body?: string }).body ?? "{}",
-            ) as Record<string, unknown> & { plugins?: unknown };
+            ) as Record<string, unknown> & { tools?: unknown };
             expect(callArg.model).toBe("anthropic/claude-3-5-sonnet");
-            expect(callArg.plugins).toEqual([{ id: "web", max_results: 6 }]);
+            expect(callArg.tools).toEqual([
+                {
+                    type: "openrouter:web_search",
+                    parameters: {
+                        max_results: 6,
+                        search_context_size: "medium",
+                    },
+                },
+            ]);
         });
 
-        test("adds web plugin with low search level (3 results)", async () => {
+        test("adds web search tool with low search level (3 results)", async () => {
             const mockResponse = {
                 ok: true,
                 status: 200,
@@ -492,11 +500,19 @@ describe("openrouter.ts", () => {
 
             const callArg = JSON.parse(
                 (fetchMock.mock.calls[0]![1] as { body?: string }).body ?? "{}",
-            ) as Record<string, unknown> & { plugins?: unknown };
-            expect(callArg.plugins).toEqual([{ id: "web", max_results: 3 }]);
+            ) as Record<string, unknown> & { tools?: unknown };
+            expect(callArg.tools).toEqual([
+                {
+                    type: "openrouter:web_search",
+                    parameters: {
+                        max_results: 3,
+                        search_context_size: "low",
+                    },
+                },
+            ]);
         });
 
-        test("adds web plugin with high search level (10 results)", async () => {
+        test("adds web search tool with high search level (10 results)", async () => {
             const mockResponse = {
                 ok: true,
                 status: 200,
@@ -537,11 +553,19 @@ describe("openrouter.ts", () => {
 
             const callArg = JSON.parse(
                 (fetchMock.mock.calls[0]![1] as { body?: string }).body ?? "{}",
-            ) as Record<string, unknown> & { plugins?: unknown };
-            expect(callArg.plugins).toEqual([{ id: "web", max_results: 10 }]);
+            ) as Record<string, unknown> & { tools?: unknown };
+            expect(callArg.tools).toEqual([
+                {
+                    type: "openrouter:web_search",
+                    parameters: {
+                        max_results: 10,
+                        search_context_size: "high",
+                    },
+                },
+            ]);
         });
 
-        test("no plugins when search level is none", async () => {
+        test("no web search tool when search level is none", async () => {
             const mockResponse = {
                 ok: true,
                 status: 200,
@@ -582,8 +606,8 @@ describe("openrouter.ts", () => {
 
             const callArg = JSON.parse(
                 (fetchMock.mock.calls[0]![1] as { body?: string }).body ?? "{}",
-            ) as Record<string, unknown> & { plugins?: unknown };
-            expect(callArg.plugins).toBeUndefined();
+            ) as Record<string, unknown> & { tools?: unknown };
+            expect(callArg.tools).toBeUndefined();
         });
 
         test("throws OpenRouterApiError on API failure", async () => {
@@ -708,7 +732,9 @@ describe("openrouter.ts", () => {
             );
 
             expect(chunks).toContain("Hello");
-            expect(result.id).toBe("streaming");
+            // No `id` was streamed by the mock; falls back to empty string
+            // (we no longer fabricate "streaming").
+            expect(result.id).toBe("");
         });
 
         test("finishes stream on finish_reason", async () => {

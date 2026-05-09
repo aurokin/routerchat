@@ -189,7 +189,7 @@ describe("sendMessage", () => {
         },
     };
 
-    it("adds plugins and reasoning when supported", async () => {
+    it("adds web search tool and reasoning when supported", async () => {
         const model: OpenRouterModel = {
             id: "provider/model",
             name: "model",
@@ -215,7 +215,13 @@ describe("sendMessage", () => {
             model: string;
             messages: OpenRouterMessage[];
             stream: boolean;
-            plugins?: Array<{ id: string; max_results?: number }>;
+            tools?: Array<{
+                type: string;
+                parameters?: {
+                    max_results?: number;
+                    search_context_size?: string;
+                };
+            }>;
             reasoning?: { effort: string };
         };
 
@@ -229,11 +235,19 @@ describe("sendMessage", () => {
         });
         expect(body.messages[1]).toEqual(messages[0]);
         expect(body.stream).toBe(false);
-        expect(body.plugins).toEqual([{ id: "web", max_results: 6 }]);
+        expect(body.tools).toEqual([
+            {
+                type: "openrouter:web_search",
+                parameters: {
+                    max_results: 6,
+                    search_context_size: "medium",
+                },
+            },
+        ]);
         expect(body.reasoning).toEqual({ effort: "high" });
     });
 
-    it("skips plugins and reasoning when unsupported", async () => {
+    it("skips tools and reasoning when unsupported", async () => {
         const model: OpenRouterModel = {
             id: "provider/model",
             name: "model",
@@ -252,11 +266,11 @@ describe("sendMessage", () => {
         await sendMessage("key", messages, session, model);
 
         const body = JSON.parse(String(lastRequest?.init?.body ?? "{}")) as {
-            plugins?: Array<{ id: string; max_results?: number }>;
+            tools?: unknown;
             reasoning?: { effort: string };
         };
 
-        expect(body.plugins).toBeUndefined();
+        expect(body.tools).toBeUndefined();
         expect(body.reasoning).toBeUndefined();
     });
 
@@ -329,7 +343,7 @@ describe("sendMessage", () => {
         );
 
         expect(chunks.join("")).toBe("Hello");
-        expect(result.id).toBe("streaming");
+        expect(result.id).toBe("");
     });
 
     it("streams chunks from async iterable fallback", async () => {
@@ -365,7 +379,7 @@ describe("sendMessage", () => {
         );
 
         expect(chunks.join("")).toBe("Hi!");
-        expect(result.id).toBe("streaming");
+        expect(result.id).toBe("");
     });
 
     it("throws a typed error on mid-stream SSE error", async () => {
@@ -575,7 +589,7 @@ describe("sendMessage xhr fallback", () => {
         );
 
         expect(chunks.join("")).toBe("Hello");
-        expect(result.id).toBe("streaming");
+        expect(result.id).toBe("");
         expect(fetchCalled).toBe(false);
     });
 
