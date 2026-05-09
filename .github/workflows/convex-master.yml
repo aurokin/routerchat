@@ -3,11 +3,11 @@ name: Convex Deploy (Production)
 on:
     push:
         branches:
-            - master
+            - main
     workflow_dispatch: {}
 
 concurrency:
-    group: convex-master-${{ github.ref }}
+    group: convex-main-${{ github.ref }}
     cancel-in-progress: true
 
 jobs:

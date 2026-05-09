@@ -39,3 +39,6 @@ ai_dump
 .env*.local
 .private/backups/
 .last-branch
+
+# Agent / loop runtime state
+.agents/scheduled_tasks.lock

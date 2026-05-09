@@ -42,13 +42,13 @@
         "health:web": "bun run env:check && bun run --cwd apps/web health",
         "health:shared": "bun run env:check && bun run --cwd packages/shared health",
         "health:convex": "bun run env:check && bun run --cwd packages/convex health",
-        "prepare": "husky"
+        "prepare": "lefthook install"
     },
     "devDependencies": {
         "@fsouza/prettierd": "^0.27.0",
         "@types/bun": "latest",
         "concurrently": "^9.2.1",
-        "husky": "^9.1.7",
+        "lefthook": "^2.1.6",
         "prettier": "^3.8.3"
     },
     "prettier": {

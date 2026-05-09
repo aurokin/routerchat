@@ -1,0 +1,19 @@
+# Lefthook hooks configuration.
+# https://lefthook.dev/configuration/
+#
+# - Pre-commit hooks run only on staged files and stay fast.
+# - The slow stuff (full typecheck, full lint, tests, build) runs in CI.
+# - To skip hooks for a single commit: LEFTHOOK=0 git commit -m ...
+
+pre-commit:
+    parallel: true
+    jobs:
+        - name: format
+          glob: "*.{js,jsx,ts,tsx,json,css,md}"
+          exclude:
+              - "**/_generated/**"
+          run: bunx --bun prettier --write {staged_files}
+          stage_fixed: true
+
+        - name: env-docs
+          run: bun run env:check

@@ -7,19 +7,12 @@ const isProduction = process.env.NODE_ENV === "production";
 const canonicalHost = process.env.CANONICAL_HOST?.trim().toLowerCase();
 
 function normalizeHost(host: string): string {
-    return host
-        .trim()
-        .toLowerCase()
-        .replace(/\.$/, "")
-        .replace(/:\d+$/, "");
+    return host.trim().toLowerCase().replace(/\.$/, "").replace(/:\d+$/, "");
 }
 
 function getRequestHost(request: NextRequest): string {
     const forwardedHost =
-        request.headers
-            .get("x-forwarded-host")
-            ?.split(",")[0]
-            ?.trim() ?? "";
+        request.headers.get("x-forwarded-host")?.split(",")[0]?.trim() ?? "";
     if (forwardedHost) {
         return normalizeHost(forwardedHost);
     }
