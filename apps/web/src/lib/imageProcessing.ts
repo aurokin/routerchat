@@ -127,7 +127,7 @@ export function compressImage(
 
     const dataUrl = canvas.toDataURL(outputType, quality);
     // Return just the base64 part, without the data URL prefix
-    return dataUrl.split(",")[1];
+    return dataUrl.split(",")[1] ?? "";
 }
 
 // Generate a thumbnail for preview
@@ -211,7 +211,7 @@ export async function processImage(
     if (!needsCompression(originalWidth, originalHeight, originalSize, opts)) {
         // Return original without compression
         const resolvedDataUrl = dataUrl ?? (await readFileAsDataURL(file));
-        const base64 = resolvedDataUrl.split(",")[1];
+        const base64 = resolvedDataUrl.split(",")[1] ?? "";
         return {
             data: base64,
             mimeType: file.type as ProcessedImage["mimeType"],

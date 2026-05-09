@@ -404,7 +404,7 @@ describe("sync", () => {
 
     it("skips missing attachments referenced by messages", async () => {
         const source = createMemoryAdapter({
-            chats: [chats[0]],
+            chats: [chats[0]!],
             messages: [
                 {
                     id: "message-x",

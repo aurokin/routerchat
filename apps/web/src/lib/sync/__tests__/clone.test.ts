@@ -132,8 +132,8 @@ describe("Clone to Local", () => {
             });
 
             expect(progressUpdates).toHaveLength(7);
-            expect(progressUpdates[0].phase).toBe("chats");
-            expect(progressUpdates[6].phase).toBe("complete");
+            expect(progressUpdates[0]!.phase).toBe("chats");
+            expect(progressUpdates[6]!.phase).toBe("complete");
         });
 
         it("progress phases follow correct order", () => {

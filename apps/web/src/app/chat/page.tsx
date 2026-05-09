@@ -14,8 +14,9 @@ export default function ChatPage() {
             requestAnimationFrame(() => {
                 setInitialized(true);
                 if (!currentChat) {
-                    if (chats.length > 0) {
-                        selectChat(chats[0].id);
+                    const first = chats[0];
+                    if (first) {
+                        selectChat(first.id);
                     } else {
                         createChat();
                     }
@@ -27,8 +28,10 @@ export default function ChatPage() {
     // If data loads later, select the latest chat when empty.
     useEffect(() => {
         if (loading || !initialized) return;
-        if (currentChat || chats.length === 0) return;
-        selectChat(chats[0].id);
+        if (currentChat) return;
+        const first = chats[0];
+        if (!first) return;
+        selectChat(first.id);
     }, [chats, currentChat, initialized, loading, selectChat]);
 
     return <ChatLayout />;

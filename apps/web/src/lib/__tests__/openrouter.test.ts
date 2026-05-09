@@ -80,8 +80,8 @@ describe("openrouter.ts", () => {
             const models = await fetchModels();
 
             expect(models).toHaveLength(1);
-            expect(models[0].id).toBe("text/model1");
-            expect(models[0].supportedParameters).toEqual([
+            expect(models[0]!.id).toBe("text/model1");
+            expect(models[0]!.supportedParameters).toEqual([
                 SupportedParameter.Reasoning,
             ]);
         });
@@ -107,9 +107,9 @@ describe("openrouter.ts", () => {
 
             const models = await fetchModels();
 
-            expect(models[0].id).toBe("anthropic/claude-3-5-sonnet");
-            expect(models[0].name).toBe("claude-3-5-sonnet");
-            expect(models[0].provider).toBe("Anthropic");
+            expect(models[0]!.id).toBe("anthropic/claude-3-5-sonnet");
+            expect(models[0]!.name).toBe("claude-3-5-sonnet");
+            expect(models[0]!.provider).toBe("Anthropic");
         });
 
         test("extracts name from id", async () => {
@@ -132,7 +132,7 @@ describe("openrouter.ts", () => {
 
             const models = await fetchModels();
 
-            expect(models[0].name).toBe("gemini-pro");
+            expect(models[0]!.name).toBe("gemini-pro");
         });
 
         test("throws OpenRouterApiError on 401 unauthorized", async () => {
@@ -375,7 +375,7 @@ describe("openrouter.ts", () => {
             await sendMessage("api-key", [], sessionWithThinking, mockModel);
 
             const callArg = JSON.parse(
-                (fetchMock.mock.calls[0][1] as { body?: string }).body ?? "{}",
+                (fetchMock.mock.calls[0]![1] as { body?: string }).body ?? "{}",
             );
             expect(callArg.reasoning).toEqual({ effort: "high" });
         });
@@ -411,7 +411,7 @@ describe("openrouter.ts", () => {
             );
 
             const callArg = JSON.parse(
-                (fetchMock.mock.calls[0][1] as { body?: string }).body ?? "{}",
+                (fetchMock.mock.calls[0]![1] as { body?: string }).body ?? "{}",
             );
             expect(callArg.reasoning).toBeUndefined();
         });
@@ -445,7 +445,7 @@ describe("openrouter.ts", () => {
             await sendMessage("api-key", [], sessionWithSearch, modelWithTools);
 
             const callArg = JSON.parse(
-                (fetchMock.mock.calls[0][1] as { body?: string }).body ?? "{}",
+                (fetchMock.mock.calls[0]![1] as { body?: string }).body ?? "{}",
             );
             expect(callArg.model).toBe("anthropic/claude-3-5-sonnet");
             expect(callArg.plugins).toEqual([{ id: "web", max_results: 6 }]);
@@ -491,7 +491,7 @@ describe("openrouter.ts", () => {
             await sendMessage("api-key", [], sessionWithSearch, modelWithTools);
 
             const callArg = JSON.parse(
-                (fetchMock.mock.calls[0][1] as { body?: string }).body ?? "{}",
+                (fetchMock.mock.calls[0]![1] as { body?: string }).body ?? "{}",
             );
             expect(callArg.plugins).toEqual([{ id: "web", max_results: 3 }]);
         });
@@ -536,7 +536,7 @@ describe("openrouter.ts", () => {
             await sendMessage("api-key", [], sessionWithSearch, modelWithTools);
 
             const callArg = JSON.parse(
-                (fetchMock.mock.calls[0][1] as { body?: string }).body ?? "{}",
+                (fetchMock.mock.calls[0]![1] as { body?: string }).body ?? "{}",
             );
             expect(callArg.plugins).toEqual([{ id: "web", max_results: 10 }]);
         });
@@ -581,7 +581,7 @@ describe("openrouter.ts", () => {
             await sendMessage("api-key", [], sessionNoSearch, modelWithTools);
 
             const callArg = JSON.parse(
-                (fetchMock.mock.calls[0][1] as { body?: string }).body ?? "{}",
+                (fetchMock.mock.calls[0]![1] as { body?: string }).body ?? "{}",
             );
             expect(callArg.plugins).toBeUndefined();
         });
@@ -673,7 +673,7 @@ describe("openrouter.ts", () => {
             );
 
             expect(result.id).toBe("resp-123");
-            expect(result.choices[0].message.content).toBe("Hello!");
+            expect(result.choices[0]!.message.content).toBe("Hello!");
             expect(result.usage.total_tokens).toBe(15);
         });
 
@@ -953,7 +953,7 @@ describe("openrouter.ts", () => {
             const models = await fetchModels();
 
             expect(models).toHaveLength(1);
-            expect(models[0].id).toBe("openai/gpt-4o");
+            expect(models[0]!.id).toBe("openai/gpt-4o");
         });
 
         test("maps vision capability to SupportedParameter", async () => {
@@ -977,7 +977,7 @@ describe("openrouter.ts", () => {
 
             const models = await fetchModels();
 
-            expect(models[0].supportedParameters).toContain(
+            expect(models[0]!.supportedParameters).toContain(
                 SupportedParameter.Vision,
             );
         });
@@ -1038,8 +1038,8 @@ describe("openrouter.ts", () => {
             expect(Array.isArray(result)).toBe(true);
             const arr = result as Array<{ type: string }>;
             expect(arr).toHaveLength(2);
-            expect(arr[0].type).toBe("image_url");
-            expect(arr[1].type).toBe("text");
+            expect(arr[0]!.type).toBe("image_url");
+            expect(arr[1]!.type).toBe("text");
         });
 
         test("buildMessageContent formats image URL correctly", () => {
@@ -1096,7 +1096,7 @@ describe("openrouter.ts", () => {
             const arr = result as Array<{ type: string }>;
             // Empty text should not be added
             expect(arr).toHaveLength(1);
-            expect(arr[0].type).toBe("image_url");
+            expect(arr[0]!.type).toBe("image_url");
         });
     });
 });

@@ -155,9 +155,9 @@ describe("ChatContext logic", () => {
                 (a, b) => a.createdAt - b.createdAt,
             );
 
-            expect(sortedMessages[0].id).toBe("1");
-            expect(sortedMessages[1].id).toBe("2");
-            expect(sortedMessages[2].id).toBe("3");
+            expect(sortedMessages[0]!.id).toBe("1");
+            expect(sortedMessages[1]!.id).toBe("2");
+            expect(sortedMessages[2]!.id).toBe("3");
         });
 
         test("does nothing if chat not found", () => {
@@ -194,7 +194,7 @@ describe("ChatContext logic", () => {
             const filtered = chats.filter((c) => c.id !== "remove");
 
             expect(filtered).toHaveLength(1);
-            expect(filtered[0].id).toBe("keep");
+            expect(filtered[0]!.id).toBe("keep");
         });
 
         test("clears current chat when deleted", () => {
@@ -423,11 +423,11 @@ describe("ChatContext logic", () => {
                 },
             ];
 
-            const updated = { ...messages[0], content: "Updated" };
+            const updated: Message = { ...messages[0]!, content: "Updated" };
             const index = messages.findIndex((m) => m.id === "msg-1");
             if (index >= 0) messages[index] = updated;
 
-            expect(messages[0].content).toBe("Updated");
+            expect(messages[0]!.content).toBe("Updated");
         });
 
         test("deleteMessagesByChat removes messages", () => {
@@ -498,9 +498,9 @@ describe("ChatContext logic", () => {
 
             const sorted = chats.sort((a, b) => b.updatedAt - a.updatedAt);
 
-            expect(sorted[0].id).toBe("3");
-            expect(sorted[1].id).toBe("2");
-            expect(sorted[2].id).toBe("1");
+            expect(sorted[0]!.id).toBe("3");
+            expect(sorted[1]!.id).toBe("2");
+            expect(sorted[2]!.id).toBe("1");
         });
     });
 });

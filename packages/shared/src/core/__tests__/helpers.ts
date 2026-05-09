@@ -73,7 +73,7 @@ export function createMemoryAdapter(
         },
         async deleteMessagesByChat(chatId) {
             for (let i = messages.length - 1; i >= 0; i -= 1) {
-                if (messages[i].sessionId === chatId) {
+                if (messages[i]?.sessionId === chatId) {
                     messages.splice(i, 1);
                 }
             }
@@ -109,7 +109,7 @@ export function createMemoryAdapter(
         },
         async deleteAttachmentsByMessage(messageId) {
             for (let i = attachments.length - 1; i >= 0; i -= 1) {
-                if (attachments[i].messageId === messageId) {
+                if (attachments[i]?.messageId === messageId) {
                     attachments.splice(i, 1);
                 }
             }

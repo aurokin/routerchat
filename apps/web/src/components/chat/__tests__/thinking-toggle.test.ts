@@ -20,30 +20,30 @@ describe("ThinkingToggle constants", () => {
     });
 
     test("THINKING_OPTIONS has correct order", () => {
-        expect(THINKING_OPTIONS[0].value).toBe("none");
-        expect(THINKING_OPTIONS[1].value).toBe("minimal");
-        expect(THINKING_OPTIONS[2].value).toBe("low");
-        expect(THINKING_OPTIONS[3].value).toBe("medium");
-        expect(THINKING_OPTIONS[4].value).toBe("high");
-        expect(THINKING_OPTIONS[5].value).toBe("xhigh");
+        expect(THINKING_OPTIONS[0]!.value).toBe("none");
+        expect(THINKING_OPTIONS[1]!.value).toBe("minimal");
+        expect(THINKING_OPTIONS[2]!.value).toBe("low");
+        expect(THINKING_OPTIONS[3]!.value).toBe("medium");
+        expect(THINKING_OPTIONS[4]!.value).toBe("high");
+        expect(THINKING_OPTIONS[5]!.value).toBe("xhigh");
     });
 
     test("THINKING_OPTIONS has correct intensity values", () => {
-        expect(THINKING_OPTIONS[0].intensity).toBe(0);
-        expect(THINKING_OPTIONS[1].intensity).toBe(1);
-        expect(THINKING_OPTIONS[2].intensity).toBe(2);
-        expect(THINKING_OPTIONS[3].intensity).toBe(3);
-        expect(THINKING_OPTIONS[4].intensity).toBe(4);
-        expect(THINKING_OPTIONS[5].intensity).toBe(5);
+        expect(THINKING_OPTIONS[0]!.intensity).toBe(0);
+        expect(THINKING_OPTIONS[1]!.intensity).toBe(1);
+        expect(THINKING_OPTIONS[2]!.intensity).toBe(2);
+        expect(THINKING_OPTIONS[3]!.intensity).toBe(3);
+        expect(THINKING_OPTIONS[4]!.intensity).toBe(4);
+        expect(THINKING_OPTIONS[5]!.intensity).toBe(5);
     });
 
     test("THINKING_OPTIONS has correct labels", () => {
-        expect(THINKING_OPTIONS[0].label).toBe("Off");
-        expect(THINKING_OPTIONS[1].label).toBe("Minimal");
-        expect(THINKING_OPTIONS[2].label).toBe("Low");
-        expect(THINKING_OPTIONS[3].label).toBe("Medium");
-        expect(THINKING_OPTIONS[4].label).toBe("High");
-        expect(THINKING_OPTIONS[5].label).toBe("XHigh");
+        expect(THINKING_OPTIONS[0]!.label).toBe("Off");
+        expect(THINKING_OPTIONS[1]!.label).toBe("Minimal");
+        expect(THINKING_OPTIONS[2]!.label).toBe("Low");
+        expect(THINKING_OPTIONS[3]!.label).toBe("Medium");
+        expect(THINKING_OPTIONS[4]!.label).toBe("High");
+        expect(THINKING_OPTIONS[5]!.label).toBe("XHigh");
     });
 });
 
@@ -301,8 +301,8 @@ describe("intensity visualization", () => {
 
     test("intensity increases with level", () => {
         for (let i = 1; i < THINKING_OPTIONS.length; i++) {
-            expect(THINKING_OPTIONS[i].intensity).toBeGreaterThan(
-                THINKING_OPTIONS[i - 1].intensity,
+            expect(THINKING_OPTIONS[i]!.intensity).toBeGreaterThan(
+                THINKING_OPTIONS[i - 1]!.intensity,
             );
         }
     });

@@ -306,9 +306,9 @@ describe("MessageList logic", () => {
 
             const sorted = messages.sort((a, b) => a.createdAt - b.createdAt);
 
-            expect(sorted[0].id).toBe("1");
-            expect(sorted[1].id).toBe("2");
-            expect(sorted[2].id).toBe("3");
+            expect(sorted[0]!.id).toBe("1");
+            expect(sorted[1]!.id).toBe("2");
+            expect(sorted[2]!.id).toBe("3");
         });
     });
 
@@ -336,7 +336,7 @@ describe("MessageList logic", () => {
             const filtered = messages.filter((m) => m.sessionId === "chat-1");
 
             expect(filtered).toHaveLength(1);
-            expect(filtered[0].id).toBe("1");
+            expect(filtered[0]!.id).toBe("1");
         });
     });
 });

@@ -110,6 +110,7 @@ export function ImageGalleryDialog({
     if (typeof document === "undefined") return null;
 
     const currentImage = sortedImages[currentIndex];
+    if (!currentImage) return null;
     const showNavigation = sortedImages.length > 1;
 
     return createPortal(

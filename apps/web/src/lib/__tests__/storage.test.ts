@@ -352,7 +352,7 @@ describe("storage.ts getSkills", () => {
             result = [];
         }
         expect(result).toHaveLength(1);
-        expect(result[0].id).toBe("skill-1");
+        expect(result[0]!.id).toBe("skill-1");
     });
 
     test("returns empty on invalid JSON", () => {

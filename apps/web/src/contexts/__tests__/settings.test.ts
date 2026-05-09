@@ -148,8 +148,8 @@ describe("SettingsContext logic", () => {
                 s.id === "skill-1" ? { ...s, ...updates } : s,
             );
 
-            expect(newSkills[0].name).toBe("Updated");
-            expect(newSkills[0].description).toBe("Original desc");
+            expect(newSkills[0]!.name).toBe("Updated");
+            expect(newSkills[0]!.description).toBe("Original desc");
         });
     });
 
@@ -175,7 +175,7 @@ describe("SettingsContext logic", () => {
             const newSkills = skills.filter((s) => s.id !== "remove");
 
             expect(newSkills).toHaveLength(1);
-            expect(newSkills[0].id).toBe("keep");
+            expect(newSkills[0]!.id).toBe("keep");
         });
 
         test("clears selected if matching", () => {
@@ -358,7 +358,7 @@ describe("SettingsContext logic", () => {
             skills.push(newSkill);
 
             expect(skills).toHaveLength(1);
-            expect(skills[0].id).toBe("skill-1");
+            expect(skills[0]!.id).toBe("skill-1");
         });
 
         test("updateSkill modifies skills array", () => {
@@ -376,7 +376,7 @@ describe("SettingsContext logic", () => {
                 s.id === "skill-1" ? { ...s, name: "Updated" } : s,
             );
 
-            expect(updated[0].name).toBe("Updated");
+            expect(updated[0]!.name).toBe("Updated");
         });
 
         test("deleteSkill removes from skills array", () => {

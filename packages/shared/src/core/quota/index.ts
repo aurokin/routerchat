@@ -46,7 +46,7 @@ export async function findOldestConversation(
     if (chats.length === 0) return null;
 
     const sorted = [...chats].sort((a, b) => a.updatedAt - b.updatedAt);
-    return sorted[0].id;
+    return sorted[0]?.id ?? null;
 }
 
 export async function purgeConversationImages(

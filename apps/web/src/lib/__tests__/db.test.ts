@@ -102,9 +102,9 @@ describe("db.ts sorting helpers", () => {
             { id: "3", createdAt: 2000 },
         ].sort((a, b) => a.createdAt - b.createdAt);
 
-        expect(messages[0].id).toBe("2");
-        expect(messages[1].id).toBe("3");
-        expect(messages[2].id).toBe("1");
+        expect(messages[0]!.id).toBe("2");
+        expect(messages[1]!.id).toBe("3");
+        expect(messages[2]!.id).toBe("1");
     });
 
     test("sortByUpdatedDesc sorts chats correctly", () => {
@@ -114,9 +114,9 @@ describe("db.ts sorting helpers", () => {
             { id: "3", updatedAt: 2000 },
         ].sort((a, b) => b.updatedAt - a.updatedAt);
 
-        expect(chats[0].id).toBe("2");
-        expect(chats[1].id).toBe("3");
-        expect(chats[2].id).toBe("1");
+        expect(chats[0]!.id).toBe("2");
+        expect(chats[1]!.id).toBe("3");
+        expect(chats[2]!.id).toBe("1");
     });
 });
 
@@ -181,7 +181,7 @@ describe("db.ts createChat", () => {
 
         await mockPut("chats", chat);
         expect(storedChats).toHaveLength(1);
-        expect(storedChats[0].id).toBe("new-chat");
+        expect(storedChats[0]!.id).toBe("new-chat");
     });
 });
 
@@ -251,9 +251,9 @@ describe("db.ts getAllChats", () => {
 
         const sorted = chats.sort((a, b) => b.updatedAt - a.updatedAt);
 
-        expect(sorted[0].id).toBe("3");
-        expect(sorted[1].id).toBe("2");
-        expect(sorted[2].id).toBe("1");
+        expect(sorted[0]!.id).toBe("3");
+        expect(sorted[1]!.id).toBe("2");
+        expect(sorted[2]!.id).toBe("1");
     });
 });
 
@@ -279,14 +279,14 @@ describe("db.ts updateChat", () => {
         });
 
         const updated: ChatSession = {
-            ...storedChats[0],
+            ...storedChats[0]!,
             title: "Updated",
             updatedAt: 2000,
         };
 
         await mockPut("chats", updated);
-        expect(storedChats[0].title).toBe("Updated");
-        expect(storedChats[0].updatedAt).toBe(2000);
+        expect(storedChats[0]!.title).toBe("Updated");
+        expect(storedChats[0]!.updatedAt).toBe(2000);
     });
 });
 
@@ -316,7 +316,7 @@ describe("db.ts deleteChat", () => {
         const filtered = storedChats.filter((c) => c.id !== "remove");
 
         expect(filtered).toHaveLength(1);
-        expect(filtered[0].id).toBe("keep");
+        expect(filtered[0]!.id).toBe("keep");
     });
 
     test("cascades delete messages", async () => {
@@ -350,7 +350,7 @@ describe("db.ts deleteChat", () => {
         const filtered = messages.filter((m) => m.sessionId !== "chat-1");
 
         expect(filtered).toHaveLength(1);
-        expect(filtered[0].id).toBe("msg-3");
+        expect(filtered[0]!.id).toBe("msg-3");
     });
 
     test("cascades delete attachments", async () => {
@@ -387,7 +387,7 @@ describe("db.ts createMessage", () => {
 
         await mockPut("messages", message);
         expect(storedMessages).toHaveLength(1);
-        expect(storedMessages[0].sessionId).toBe("chat-123");
+        expect(storedMessages[0]!.sessionId).toBe("chat-123");
     });
 });
 
@@ -424,9 +424,9 @@ describe("db.ts getMessagesByChat", () => {
             .filter((m) => m.sessionId === "chat-1")
             .sort((a, b) => a.createdAt - b.createdAt);
 
-        expect(sorted[0].id).toBe("1");
-        expect(sorted[1].id).toBe("2");
-        expect(sorted[2].id).toBe("3");
+        expect(sorted[0]!.id).toBe("1");
+        expect(sorted[1]!.id).toBe("2");
+        expect(sorted[2]!.id).toBe("3");
     });
 
     test("filters by sessionId", async () => {
@@ -452,7 +452,7 @@ describe("db.ts getMessagesByChat", () => {
         const filtered = messages.filter((m) => m.sessionId === "chat-1");
 
         expect(filtered).toHaveLength(1);
-        expect(filtered[0].id).toBe("1");
+        expect(filtered[0]!.id).toBe("1");
     });
 });
 
@@ -470,7 +470,7 @@ describe("db.ts updateMessage", () => {
         ];
 
         const updated: Message = {
-            ...messages[0],
+            ...messages[0]!,
             content: "Updated",
         };
 
@@ -479,7 +479,7 @@ describe("db.ts updateMessage", () => {
             messages[index] = updated;
         }
 
-        expect(messages[0].content).toBe("Updated");
+        expect(messages[0]!.content).toBe("Updated");
     });
 });
 
@@ -515,7 +515,7 @@ describe("db.ts deleteMessagesByChat", () => {
         const filtered = messages.filter((m) => m.sessionId !== "chat-1");
 
         expect(filtered).toHaveLength(1);
-        expect(filtered[0].id).toBe("3");
+        expect(filtered[0]!.id).toBe("3");
     });
 
     test("removes attachments for deleted messages", async () => {
@@ -560,7 +560,7 @@ describe("db.ts deleteMessagesByChat", () => {
         );
 
         expect(remaining).toHaveLength(1);
-        expect(remaining[0].id).toBe("att-3");
+        expect(remaining[0]!.id).toBe("att-3");
     });
 });
 
@@ -596,7 +596,7 @@ describe("db.ts deleteMessage", () => {
         );
 
         expect(remaining).toHaveLength(1);
-        expect(remaining[0].id).toBe("att-2");
+        expect(remaining[0]!.id).toBe("att-2");
     });
 });
 

@@ -27,6 +27,7 @@ export function ImageViewer({
 
     const handleDownload = () => {
         const image = images[currentIndex];
+        if (!image) return;
         const link = document.createElement("a");
         link.href = image.src;
         link.download = image.alt || `image-${currentIndex + 1}`;
@@ -63,6 +64,7 @@ export function ImageViewer({
     }, []);
 
     const currentImage = images[currentIndex];
+    if (!currentImage) return null;
     const showNavigation = images.length > 1;
 
     return (

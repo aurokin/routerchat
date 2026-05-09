@@ -149,8 +149,8 @@ describe("quota helpers", () => {
             "chat-a",
             "chat-b",
         ]);
-        expect(usage[0].imageBytes).toBe(200);
-        expect(usage[1].imageCount).toBe(1);
+        expect(usage[0]!.imageBytes).toBe(200);
+        expect(usage[1]!.imageCount).toBe(1);
     });
 
     it("allows uploads when adapter is missing", async () => {
