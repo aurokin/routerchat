@@ -31,7 +31,7 @@ Working set of implementation plans for the post-OSS-launch refactor. These file
 | W3  | `W3-convex.md`        | [~] mechanical + security shipped; components deferred (need live deployment) |
 | W4  | `W4-openrouter.md`    | [~] split + deprecation shipped; Wave 2 features deferred (UI scope)          |
 | W5  | `W5-testing.md`       | [~] Vitest + Knip shipped; RTL/Playwright/coverage deferred                   |
-| W6  | `W6-architecture.md`  | not started                                                                   |
+| W6  | `W6-architecture.md`  | [~] Convex provider fix + helper cleanup shipped; component splits deferred   |
 
 ## Sequencing
 

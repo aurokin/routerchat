@@ -1,8 +1,11 @@
 "use client";
 
-import { useQuery, useMutation, useAction, useConvexAuth } from "convex/react";
+import { useQuery, useMutation, useAction } from "convex/react";
 import { api } from "@convex/_generated/api";
-import { useIsConvexAvailable } from "@/contexts/ConvexProvider";
+import {
+    useIsConvexAvailable,
+    useSafeConvexAuth,
+} from "@/contexts/ConvexProvider";
 import { useSync } from "@/contexts/SyncContext";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
@@ -66,7 +69,7 @@ export function isApiKeyLoadingState(params: {
  */
 export function useApiKey(): UseApiKeyReturn {
     const isConvexAvailable = useIsConvexAvailable();
-    const { isAuthenticated } = useConvexAuth();
+    const { isAuthenticated } = useSafeConvexAuth();
     const { syncState } = useSync();
 
     const [localApiKey, setLocalApiKeyState] = useState<string | null>(() =>

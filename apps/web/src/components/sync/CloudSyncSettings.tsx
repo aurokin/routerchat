@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useConvexAuth, useQuery } from "convex/react";
+import { useQuery } from "convex/react";
 import { Cloud, ChevronRight, Loader2 } from "lucide-react";
+import { useSafeConvexAuth } from "@/contexts/ConvexProvider";
 import { useSync } from "@/contexts/SyncContext";
 import { api } from "@convex/_generated/api";
 import { useAuthActions } from "@convex-dev/auth/react";
@@ -125,7 +126,7 @@ function CloudSyncSettingsContent({
         isMigrating,
         migrationProgress,
     } = useSync();
-    const { isAuthenticated, isLoading: isAuthLoading } = useConvexAuth();
+    const { isAuthenticated, isLoading: isAuthLoading } = useSafeConvexAuth();
     const userId = useQuery(
         api.users.getCurrentUserId,
         isAuthenticated ? {} : "skip",

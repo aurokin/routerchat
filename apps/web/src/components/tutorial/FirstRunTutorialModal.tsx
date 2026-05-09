@@ -11,7 +11,7 @@ import {
     X,
 } from "lucide-react";
 import { useAuthActions } from "@convex-dev/auth/react";
-import { useConvexAuth } from "convex/react";
+import { useSafeConvexAuth } from "@/contexts/ConvexProvider";
 import { useSync } from "@/contexts/SyncContext";
 import { useApiKey } from "@/hooks/useApiKey";
 import { getStorageUsage } from "@/lib/db";
@@ -87,7 +87,7 @@ export function FirstRunTutorialModal() {
         isConvexAvailable,
         isInitialSyncLoaded,
     } = useSync();
-    const { isAuthenticated, isLoading: isAuthLoading } = useConvexAuth();
+    const { isAuthenticated, isLoading: isAuthLoading } = useSafeConvexAuth();
     const { signIn } = useAuthActions() ?? {};
 
     const [localSessions, setLocalSessions] = useState<number | null>(null);

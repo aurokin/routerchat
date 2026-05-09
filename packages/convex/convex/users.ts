@@ -139,13 +139,7 @@ export const resetCloudData = mutation({
     args: {},
     returns: v.null(),
     handler: async (ctx) => {
-        const userId = (await getAuthUserId(ctx)) as Id<"users"> | null;
-        if (!userId) {
-            throw new ConvexError({
-                code: "UNAUTHENTICATED",
-                message: "Not authenticated",
-            });
-        }
+        const userId = await requireAuthUserId(ctx);
 
         // Clear attachments first so we don't have to do nested deletions.
         await drainBatches(
@@ -274,13 +268,7 @@ export const setInitialSync = mutation({
     },
     returns: v.null(),
     handler: async (ctx, args) => {
-        const userId = (await getAuthUserId(ctx)) as Id<"users"> | null;
-        if (!userId) {
-            throw new ConvexError({
-                code: "UNAUTHENTICATED",
-                message: "Not authenticated",
-            });
-        }
+        const userId = await requireAuthUserId(ctx);
 
         await ctx.db.patch(userId, {
             initialSync: args.initialSync,
