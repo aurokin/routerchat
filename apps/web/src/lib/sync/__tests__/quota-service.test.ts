@@ -1,12 +1,12 @@
-import { describe, expect, it, mock } from "bun:test";
+import { describe, expect, it, vi } from "vitest";
 import type { StorageAdapter } from "@/lib/sync/storage-adapter";
 import { CLOUD_IMAGE_QUOTA, LOCAL_IMAGE_QUOTA } from "@/lib/sync/types";
 
 const localAdapter = {
-    getImageStorageUsage: mock(async () => 256 * 1024 * 1024),
+    getImageStorageUsage: vi.fn(async () => 256 * 1024 * 1024),
 };
 
-mock.module("@/lib/sync/local-adapter", () => ({
+vi.mock("@/lib/sync/local-adapter", () => ({
     getLocalStorageAdapter: () => localAdapter,
 }));
 
@@ -22,7 +22,7 @@ describe("quota service", () => {
 
     it("getCloudQuotaStatus uses provided adapter", async () => {
         const cloudAdapter = {
-            getImageStorageUsage: mock(async () => 512 * 1024 * 1024),
+            getImageStorageUsage: vi.fn(async () => 512 * 1024 * 1024),
         } as unknown as StorageAdapter;
 
         const status = await quota.getCloudQuotaStatus(cloudAdapter);

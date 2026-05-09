@@ -9,7 +9,7 @@
  * would require a browser environment to test.
  */
 
-import { describe, it, expect, beforeEach, afterEach } from "bun:test";
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { getConvexUrl, isConvexConfigured, isServer } from "@/lib/sync/config";
 import { LocalStorageAdapter } from "@/lib/sync/local-adapter";
 import {

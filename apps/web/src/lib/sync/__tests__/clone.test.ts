@@ -5,7 +5,7 @@
  * signed-in users copy their cloud data to local storage.
  */
 
-import { describe, it, expect } from "bun:test";
+import { describe, it, expect } from "vitest";
 import type { CloneOptions, CloneProgress } from "@/lib/sync/types";
 
 describe("Clone to Local", () => {

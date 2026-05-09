@@ -1,4 +1,4 @@
-import { describe, test, expect, beforeAll, afterAll } from "bun:test";
+import { describe, test, expect, beforeAll, afterAll } from "vitest";
 
 describe("Responsive Utilities", () => {
     describe("Breakpoint Detection Logic", () => {

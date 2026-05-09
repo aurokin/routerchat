@@ -4,7 +4,7 @@
  * Tests for storage quota enforcement and auto-purge functionality.
  */
 
-import { describe, it, expect } from "bun:test";
+import { describe, it, expect } from "vitest";
 import {
     calculateQuotaStatus,
     formatBytes,

@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Attachment, ChatSession, Message } from "@/lib/types";
 import type { ConvexClientInterface, ConvexId } from "@/lib/sync/convex-types";
 import { ConvexStorageAdapter } from "@/lib/sync/convex-adapter";
@@ -37,16 +37,16 @@ const createClient = (
     actionResponses: unknown[] = [],
 ): {
     client: ConvexClientInterface;
-    mutation: ReturnType<typeof mock>;
-    query: ReturnType<typeof mock>;
-    action: ReturnType<typeof mock>;
+    mutation: ReturnType<typeof vi.fn>;
+    query: ReturnType<typeof vi.fn>;
+    action: ReturnType<typeof vi.fn>;
 } => {
     let mutationIndex = 0;
     let queryIndex = 0;
     let actionIndex = 0;
-    const mutation = mock(async () => mutationResponses[mutationIndex++]);
-    const query = mock(async () => queryResponses[queryIndex++]);
-    const action = mock(async () => actionResponses[actionIndex++]);
+    const mutation = vi.fn(async () => mutationResponses[mutationIndex++]);
+    const query = vi.fn(async () => queryResponses[queryIndex++]);
+    const action = vi.fn(async () => actionResponses[actionIndex++]);
     return {
         client: { mutation, query, action } as ConvexClientInterface,
         mutation,
@@ -63,7 +63,7 @@ describe("ConvexStorageAdapter", () => {
     const originalFetch = globalThis.fetch;
 
     let storageMock: StorageMock;
-    let fetchMock: ReturnType<typeof mock>;
+    let fetchMock: ReturnType<typeof vi.fn>;
     const userId = "user-1" as ConvexId<"users">;
 
     const chatDoc = {
@@ -139,7 +139,7 @@ describe("ConvexStorageAdapter", () => {
 
         globalThis.FileReader = MockFileReader as unknown as typeof FileReader;
 
-        fetchMock = mock(async (url: string) => {
+        fetchMock = vi.fn(async (url: string) => {
             if (url === "https://upload.test") {
                 return {
                     ok: true,

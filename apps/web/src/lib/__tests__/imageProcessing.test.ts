@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, test, expect } from "bun:test";
+import { afterEach, beforeEach, describe, test, expect } from "vitest";
 import {
     isValidImageType,
     calculateResizeDimensions,

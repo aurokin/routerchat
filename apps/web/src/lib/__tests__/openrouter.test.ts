@@ -1,6 +1,6 @@
-import { test, expect, describe, beforeEach, mock } from "bun:test";
+import { test, expect, describe, beforeEach, vi } from "vitest";
 
-const fetchMock = mock(
+const fetchMock = vi.fn(
     (..._args: Parameters<typeof fetch>): Promise<Response> => {
         return Promise.resolve({} as Response);
     },

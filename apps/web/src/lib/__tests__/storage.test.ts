@@ -1,4 +1,4 @@
-import { test, expect, describe, beforeEach, mock } from "bun:test";
+import { test, expect, describe, beforeEach, vi } from "vitest";
 import type { Skill } from "@/lib/types";
 
 const STORAGE_KEYS = {
@@ -88,13 +88,13 @@ describe("storage.ts getApiKey", () => {
     });
 
     test("returns null when not set", () => {
-        const mockGetItem = mock((key: string) => null);
+        const mockGetItem = vi.fn((key: string) => null);
         const result = mockGetItem(STORAGE_KEYS.API_KEY);
         expect(result).toBeNull();
     });
 
     test("returns stored key", () => {
-        const mockGetItem = mock((key: string) => "sk-test-key123");
+        const mockGetItem = vi.fn((key: string) => "sk-test-key123");
         const result = mockGetItem(STORAGE_KEYS.API_KEY);
         expect(result).toBe("sk-test-key123");
     });
@@ -103,7 +103,7 @@ describe("storage.ts getApiKey", () => {
 describe("storage.ts setApiKey", () => {
     test("stores key in localStorage", () => {
         const storedValues: Record<string, string> = {};
-        const mockSetItem = mock((key: string, value: string) => {
+        const mockSetItem = vi.fn((key: string, value: string) => {
             storedValues[key] = value;
         });
         mockSetItem(STORAGE_KEYS.API_KEY, "sk-new-key");
@@ -114,7 +114,7 @@ describe("storage.ts setApiKey", () => {
 describe("storage.ts clearApiKey", () => {
     test("removes key from localStorage", () => {
         const removedKeys: string[] = [];
-        const mockRemoveItem = mock((key: string) => {
+        const mockRemoveItem = vi.fn((key: string) => {
             removedKeys.push(key);
         });
         mockRemoveItem(STORAGE_KEYS.API_KEY);
@@ -124,7 +124,7 @@ describe("storage.ts clearApiKey", () => {
 
 describe("storage.ts getTheme", () => {
     test("returns system by default", () => {
-        const mockGetItem = mock((key: string) => null);
+        const mockGetItem = vi.fn((key: string) => null);
         const result = (mockGetItem(STORAGE_KEYS.THEME) ?? "system") as
             | "light"
             | "dark"
@@ -133,7 +133,7 @@ describe("storage.ts getTheme", () => {
     });
 
     test("returns stored theme", () => {
-        const mockGetItem = mock((key: string) => "dark");
+        const mockGetItem = vi.fn((key: string) => "dark");
         const result = mockGetItem(STORAGE_KEYS.THEME) as
             | "light"
             | "dark"
@@ -142,7 +142,7 @@ describe("storage.ts getTheme", () => {
     });
 
     test("handles light theme", () => {
-        const mockGetItem = mock((key: string) => "light");
+        const mockGetItem = vi.fn((key: string) => "light");
         const result = mockGetItem(STORAGE_KEYS.THEME) as
             | "light"
             | "dark"
@@ -151,7 +151,7 @@ describe("storage.ts getTheme", () => {
     });
 
     test("handles invalid values - returns invalid without fallback", () => {
-        const mockGetItem = mock((key: string) => "invalid");
+        const mockGetItem = vi.fn((key: string) => "invalid");
         const result = mockGetItem(STORAGE_KEYS.THEME);
         expect(result).toBe("invalid");
     });
@@ -160,7 +160,7 @@ describe("storage.ts getTheme", () => {
 describe("storage.ts setTheme", () => {
     test("stores theme value", () => {
         const storedValues: Record<string, string> = {};
-        const mockSetItem = mock((key: string, value: string) => {
+        const mockSetItem = vi.fn((key: string, value: string) => {
             storedValues[key] = value;
         });
         mockSetItem(STORAGE_KEYS.THEME, "dark");
@@ -170,13 +170,13 @@ describe("storage.ts setTheme", () => {
 
 describe("storage.ts getDefaultModel", () => {
     test("returns empty string by default", () => {
-        const mockGetItem = mock((key: string) => null);
+        const mockGetItem = vi.fn((key: string) => null);
         const result = mockGetItem(STORAGE_KEYS.DEFAULT_MODEL) || "";
         expect(result).toBe("");
     });
 
     test("returns stored model", () => {
-        const mockGetItem = mock(
+        const mockGetItem = vi.fn(
             (key: string) => "anthropic/claude-3-5-sonnet",
         );
         const result = mockGetItem(STORAGE_KEYS.DEFAULT_MODEL) || "";
@@ -187,7 +187,7 @@ describe("storage.ts getDefaultModel", () => {
 describe("storage.ts setDefaultModel", () => {
     test("stores model ID", () => {
         const storedValues: Record<string, string> = {};
-        const mockSetItem = mock((key: string, value: string) => {
+        const mockSetItem = vi.fn((key: string, value: string) => {
             storedValues[key] = value;
         });
         mockSetItem(STORAGE_KEYS.DEFAULT_MODEL, "test/model");
@@ -197,7 +197,7 @@ describe("storage.ts setDefaultModel", () => {
 
 describe("storage.ts getDefaultThinking", () => {
     test("returns none by default", () => {
-        const mockGetItem = mock((key: string) => null);
+        const mockGetItem = vi.fn((key: string) => null);
         const result = (mockGetItem(STORAGE_KEYS.DEFAULT_THINKING) ??
             "none") as "xhigh" | "high" | "medium" | "low" | "minimal" | "none";
         expect(result).toBe("none");
@@ -209,7 +209,7 @@ describe("storage.ts getDefaultThinking", () => {
         > = ["xhigh", "high", "medium", "low", "minimal", "none"];
 
         for (const level of levels) {
-            const mockGetItem = mock((key: string) => level);
+            const mockGetItem = vi.fn((key: string) => level);
             const result = mockGetItem(STORAGE_KEYS.DEFAULT_THINKING) as
                 | "xhigh"
                 | "high"
@@ -225,7 +225,7 @@ describe("storage.ts getDefaultThinking", () => {
 describe("storage.ts setDefaultThinking", () => {
     test("stores thinking level", () => {
         const storedValues: Record<string, string> = {};
-        const mockSetItem = mock((key: string, value: string) => {
+        const mockSetItem = vi.fn((key: string, value: string) => {
             storedValues[key] = value;
         });
         mockSetItem(STORAGE_KEYS.DEFAULT_THINKING, "high");
@@ -235,19 +235,19 @@ describe("storage.ts setDefaultThinking", () => {
 
 describe("storage.ts getDefaultSearchEnabled", () => {
     test("returns false by default", () => {
-        const mockGetItem = mock((key: string) => null);
+        const mockGetItem = vi.fn((key: string) => null);
         const result = mockGetItem(STORAGE_KEYS.DEFAULT_SEARCH) === "true";
         expect(result).toBe(false);
     });
 
     test("parses true correctly", () => {
-        const mockGetItem = mock((key: string) => "true");
+        const mockGetItem = vi.fn((key: string) => "true");
         const result = mockGetItem(STORAGE_KEYS.DEFAULT_SEARCH) === "true";
         expect(result).toBe(true);
     });
 
     test("parses false correctly", () => {
-        const mockGetItem = mock((key: string) => "false");
+        const mockGetItem = vi.fn((key: string) => "false");
         const result = mockGetItem(STORAGE_KEYS.DEFAULT_SEARCH) === "true";
         expect(result).toBe(false);
     });
@@ -256,7 +256,7 @@ describe("storage.ts getDefaultSearchEnabled", () => {
 describe("storage.ts setDefaultSearchEnabled", () => {
     test("stores boolean as string", () => {
         const storedValues: Record<string, string> = {};
-        const mockSetItem = mock((key: string, value: string) => {
+        const mockSetItem = vi.fn((key: string, value: string) => {
             storedValues[key] = value;
         });
         mockSetItem(STORAGE_KEYS.DEFAULT_SEARCH, String(true));
@@ -266,7 +266,7 @@ describe("storage.ts setDefaultSearchEnabled", () => {
 
 describe("storage.ts getFavoriteModels", () => {
     test("returns empty array by default", () => {
-        const mockGetItem = mock((key: string) => null);
+        const mockGetItem = vi.fn((key: string) => null);
         let result: string[] = [];
         try {
             const stored = mockGetItem(STORAGE_KEYS.FAVORITE_MODELS);
@@ -278,7 +278,7 @@ describe("storage.ts getFavoriteModels", () => {
     });
 
     test("parses JSON array correctly", () => {
-        const mockGetItem = mock((key: string) =>
+        const mockGetItem = vi.fn((key: string) =>
             JSON.stringify(["model1", "model2", "model3"]),
         );
         let result: string[] = [];
@@ -292,7 +292,7 @@ describe("storage.ts getFavoriteModels", () => {
     });
 
     test("returns empty on invalid JSON", () => {
-        const mockGetItem = mock((key: string) => "invalid json {");
+        const mockGetItem = vi.fn((key: string) => "invalid json {");
         let result: string[] = [];
         try {
             const stored = mockGetItem(STORAGE_KEYS.FAVORITE_MODELS);
@@ -307,7 +307,7 @@ describe("storage.ts getFavoriteModels", () => {
 describe("storage.ts setFavoriteModels", () => {
     test("stores JSON array", () => {
         const storedValues: Record<string, string> = {};
-        const mockSetItem = mock((key: string, value: string) => {
+        const mockSetItem = vi.fn((key: string, value: string) => {
             storedValues[key] = value;
         });
         mockSetItem(
@@ -322,7 +322,7 @@ describe("storage.ts setFavoriteModels", () => {
 
 describe("storage.ts getSkills", () => {
     test("returns empty array by default", () => {
-        const mockGetItem = mock((key: string) => null);
+        const mockGetItem = vi.fn((key: string) => null);
         let result: Skill[] = [];
         try {
             const stored = mockGetItem(STORAGE_KEYS.SKILLS);
@@ -343,7 +343,7 @@ describe("storage.ts getSkills", () => {
                 createdAt: 1000,
             },
         ];
-        const mockGetItem = mock((key: string) => JSON.stringify(skills));
+        const mockGetItem = vi.fn((key: string) => JSON.stringify(skills));
         let result: Skill[] = [];
         try {
             const stored = mockGetItem(STORAGE_KEYS.SKILLS);
@@ -356,7 +356,7 @@ describe("storage.ts getSkills", () => {
     });
 
     test("returns empty on invalid JSON", () => {
-        const mockGetItem = mock((key: string) => "not json");
+        const mockGetItem = vi.fn((key: string) => "not json");
         let result: Skill[] = [];
         try {
             const stored = mockGetItem(STORAGE_KEYS.SKILLS);
@@ -371,7 +371,7 @@ describe("storage.ts getSkills", () => {
 describe("storage.ts setSkills", () => {
     test("stores skills array", () => {
         const storedValues: Record<string, string> = {};
-        const mockSetItem = mock((key: string, value: string) => {
+        const mockSetItem = vi.fn((key: string, value: string) => {
             storedValues[key] = value;
         });
         const skills: Skill[] = [
@@ -390,13 +390,13 @@ describe("storage.ts setSkills", () => {
 
 describe("storage.ts getDefaultSkillId", () => {
     test("returns null when not set", () => {
-        const mockGetItem = mock((key: string) => null);
+        const mockGetItem = vi.fn((key: string) => null);
         const result = mockGetItem(STORAGE_KEYS.DEFAULT_SKILL);
         expect(result).toBeNull();
     });
 
     test("returns skill ID when set", () => {
-        const mockGetItem = mock((key: string) => "skill-123");
+        const mockGetItem = vi.fn((key: string) => "skill-123");
         const result = mockGetItem(STORAGE_KEYS.DEFAULT_SKILL);
         expect(result).toBe("skill-123");
     });
@@ -405,7 +405,7 @@ describe("storage.ts getDefaultSkillId", () => {
 describe("storage.ts setDefaultSkillId", () => {
     test("stores skill ID when provided", () => {
         const storedValues: Record<string, string> = {};
-        const mockSetItem = mock((key: string, value: string) => {
+        const mockSetItem = vi.fn((key: string, value: string) => {
             storedValues[key] = value;
         });
         mockSetItem(STORAGE_KEYS.DEFAULT_SKILL, "skill-456");
@@ -414,7 +414,7 @@ describe("storage.ts setDefaultSkillId", () => {
 
     test("removes skill ID when null", () => {
         const removedKeys: string[] = [];
-        const mockRemoveItem = mock((key: string) => {
+        const mockRemoveItem = vi.fn((key: string) => {
             removedKeys.push(key);
         });
         const skillId: string | null = null;
@@ -429,13 +429,13 @@ describe("storage.ts setDefaultSkillId", () => {
 
 describe("storage.ts getSelectedSkillId", () => {
     test("returns null when not set", () => {
-        const mockGetItem = mock((key: string) => null);
+        const mockGetItem = vi.fn((key: string) => null);
         const result = mockGetItem(STORAGE_KEYS.SELECTED_SKILL_ID);
         expect(result).toBeNull();
     });
 
     test("returns skill ID when set", () => {
-        const mockGetItem = mock((key: string) => "skill-selected");
+        const mockGetItem = vi.fn((key: string) => "skill-selected");
         const result = mockGetItem(STORAGE_KEYS.SELECTED_SKILL_ID);
         expect(result).toBe("skill-selected");
     });
@@ -444,7 +444,7 @@ describe("storage.ts getSelectedSkillId", () => {
 describe("storage.ts setSelectedSkillId", () => {
     test("stores skill ID when provided", () => {
         const storedValues: Record<string, string> = {};
-        const mockSetItem = mock((key: string, value: string) => {
+        const mockSetItem = vi.fn((key: string, value: string) => {
             storedValues[key] = value;
         });
         mockSetItem(STORAGE_KEYS.SELECTED_SKILL_ID, "skill-selected");
@@ -455,7 +455,7 @@ describe("storage.ts setSelectedSkillId", () => {
 
     test("removes skill ID when null", () => {
         const removedKeys: string[] = [];
-        const mockRemoveItem = mock((key: string) => {
+        const mockRemoveItem = vi.fn((key: string) => {
             removedKeys.push(key);
         });
         const skillId: string | null = null;
@@ -470,13 +470,13 @@ describe("storage.ts setSelectedSkillId", () => {
 
 describe("storage.ts getSelectedSkillMode", () => {
     test("defaults to auto", () => {
-        const mockGetItem = mock((key: string) => null);
+        const mockGetItem = vi.fn((key: string) => null);
         const result = mockGetItem(STORAGE_KEYS.SELECTED_SKILL_MODE);
         expect(result ?? "auto").toBe("auto");
     });
 
     test("reads manual mode", () => {
-        const mockGetItem = mock((key: string) => "manual");
+        const mockGetItem = vi.fn((key: string) => "manual");
         const result = mockGetItem(STORAGE_KEYS.SELECTED_SKILL_MODE);
         expect(result).toBe("manual");
     });
@@ -485,7 +485,7 @@ describe("storage.ts getSelectedSkillMode", () => {
 describe("storage.ts setSelectedSkillMode", () => {
     test("stores mode", () => {
         const storedValues: Record<string, string> = {};
-        const mockSetItem = mock((key: string, value: string) => {
+        const mockSetItem = vi.fn((key: string, value: string) => {
             storedValues[key] = value;
         });
         mockSetItem(STORAGE_KEYS.SELECTED_SKILL_MODE, "manual");

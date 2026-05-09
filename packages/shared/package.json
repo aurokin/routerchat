@@ -9,7 +9,7 @@
         "format:check": "prettier --check \"src/**/*.{js,jsx,ts,tsx,json,css,md}\" \"*.{js,jsx,ts,tsx,json,css,md}\"",
         "typecheck": "tsc --noEmit",
         "lint": "eslint .",
-        "test": "bun test",
+        "test": "vitest run",
         "health": "bun run format && bun run typecheck && bun run lint && bun run test"
     },
     "devDependencies": {

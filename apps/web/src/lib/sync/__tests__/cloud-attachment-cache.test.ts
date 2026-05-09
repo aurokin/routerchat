@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 type MetaRecord = {
     id: string;
@@ -83,14 +83,14 @@ const fakeDb = {
     }),
 };
 
-const openDBMock = mock(
+const openDBMock = vi.fn(
     async (_name: string, _version: number, options: any) => {
         options?.upgrade?.(fakeDb);
         return fakeDb as any;
     },
 );
 
-mock.module("idb", () => ({
+vi.mock("idb", () => ({
     openDB: openDBMock,
 }));
 

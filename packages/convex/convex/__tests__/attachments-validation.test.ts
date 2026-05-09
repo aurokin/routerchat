@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, test } from "vitest";
 import { create as createAttachment } from "../attachments";
 import { LIMITS } from "../lib/limits";
 

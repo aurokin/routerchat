@@ -1,4 +1,4 @@
-import { test, expect, describe, mock } from "bun:test";
+import { test, expect, describe, vi } from "vitest";
 import type { ChatSession, Message, Skill, ThinkingLevel } from "@/lib/types";
 
 describe("ChatContext logic", () => {

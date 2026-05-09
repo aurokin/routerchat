@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api } from "@convex/_generated/api";
 
 type MetaRecord = {
@@ -84,14 +84,14 @@ const fakeDb = {
     }),
 };
 
-const openDBMock = mock(
+const openDBMock = vi.fn(
     async (_name: string, _version: number, options: any) => {
         options?.upgrade?.(fakeDb);
         return fakeDb as any;
     },
 );
 
-mock.module("idb", () => ({
+vi.mock("idb", () => ({
     openDB: openDBMock,
 }));
 
@@ -168,7 +168,7 @@ describe("cloud attachment caches (memory + IndexedDB)", () => {
     });
 
     it("falls back to persistent cache when memory cache is cleared, and re-downloads after full cache clear", async () => {
-        const fetchMock = mock(async (url: string) => {
+        const fetchMock = vi.fn(async (url: string) => {
             if (url !== "https://download.test") {
                 return {
                     ok: false,
@@ -200,7 +200,7 @@ describe("cloud attachment caches (memory + IndexedDB)", () => {
             createdAt: 4,
         };
 
-        const query = mock(async (_fn: any, args: any) => {
+        const query = vi.fn(async (_fn: any, args: any) => {
             if (args?.storageId) {
                 return "https://download.test";
             }
@@ -210,7 +210,7 @@ describe("cloud attachment caches (memory + IndexedDB)", () => {
 
         const client = {
             query,
-            mutation: mock(async () => undefined),
+            mutation: vi.fn(async () => undefined),
         } as any;
 
         const adapter = new ConvexStorageAdapter(client, "user-1" as any);

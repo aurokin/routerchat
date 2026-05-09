@@ -1,4 +1,4 @@
-import { test, expect, describe } from "bun:test";
+import { test, expect, describe } from "vitest";
 
 /**
  * Tests for Convex apiKey mutation/query logic

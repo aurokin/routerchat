@@ -1,4 +1,4 @@
-import { test, expect, describe } from "bun:test";
+import { test, expect, describe } from "vitest";
 import type { Message, Skill } from "@/lib/types";
 
 describe("MessageList logic", () => {

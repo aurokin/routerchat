@@ -5,20 +5,20 @@ import {
     describe,
     expect,
     it,
-    mock,
-} from "bun:test";
+    vi,
+} from "vitest";
 import type { Attachment, ChatSession, Message, Skill } from "@/lib/types";
 
 type StoreName = "chats" | "messages" | "attachments";
 
 type FakeDb = {
-    put: ReturnType<typeof mock>;
-    get: ReturnType<typeof mock>;
-    getAllFromIndex: ReturnType<typeof mock>;
-    delete: ReturnType<typeof mock>;
-    clear: ReturnType<typeof mock>;
-    getAll: ReturnType<typeof mock>;
-    count: ReturnType<typeof mock>;
+    put: ReturnType<typeof vi.fn>;
+    get: ReturnType<typeof vi.fn>;
+    getAllFromIndex: ReturnType<typeof vi.fn>;
+    delete: ReturnType<typeof vi.fn>;
+    clear: ReturnType<typeof vi.fn>;
+    getAll: ReturnType<typeof vi.fn>;
+    count: ReturnType<typeof vi.fn>;
     transaction: (
         storeName: StoreName,
         mode: "readwrite" | "readonly",
@@ -26,7 +26,7 @@ type FakeDb = {
         store: { put: (value: Attachment) => Promise<void> };
         done: Promise<void>;
     };
-    createObjectStore?: ReturnType<typeof mock>;
+    createObjectStore?: ReturnType<typeof vi.fn>;
 };
 
 const stores = {
@@ -75,15 +75,15 @@ const getStoreValues = (store: StoreName): any[] => {
 };
 
 const createFakeDb = (): FakeDb => {
-    const put = mock(async (store: StoreName, value: any) => {
+    const put = vi.fn(async (store: StoreName, value: any) => {
         stores[store].set(value.id, value);
     });
 
-    const get = mock(async (store: StoreName, id: string) => {
+    const get = vi.fn(async (store: StoreName, id: string) => {
         return stores[store].get(id);
     });
 
-    const getAllFromIndex = mock(
+    const getAllFromIndex = vi.fn(
         async (store: StoreName, index: string, query?: string) => {
             const values = getStoreValues(store);
             if (store === "chats" && index === "by-updated") {
@@ -102,19 +102,19 @@ const createFakeDb = (): FakeDb => {
         },
     );
 
-    const del = mock(async (store: StoreName, id: string) => {
+    const del = vi.fn(async (store: StoreName, id: string) => {
         stores[store].delete(id);
     });
 
-    const clear = mock(async (store: StoreName) => {
+    const clear = vi.fn(async (store: StoreName) => {
         stores[store].clear();
     });
 
-    const getAll = mock(async (store: StoreName) => {
+    const getAll = vi.fn(async (store: StoreName) => {
         return getStoreValues(store);
     });
 
-    const count = mock(async (store: StoreName) => {
+    const count = vi.fn(async (store: StoreName) => {
         return stores[store].size;
     });
 
@@ -151,12 +151,12 @@ let capturedUpgrade:
     | null = null;
 
 const fakeDb = createFakeDb();
-const openDBMock = mock((name: string, version: number, options: any) => {
+const openDBMock = vi.fn((name: string, version: number, options: any) => {
     capturedUpgrade = options?.upgrade ?? null;
     return Promise.resolve(fakeDb);
 });
 
-mock.module("idb", () => ({
+vi.mock("idb", () => ({
     openDB: openDBMock,
 }));
 
@@ -620,9 +620,9 @@ describe("db operations", () => {
 
         const createdStores: string[] = [];
         const upgradeDb = {
-            createObjectStore: mock((name: string) => {
+            createObjectStore: vi.fn((name: string) => {
                 createdStores.push(name);
-                return { createIndex: mock(() => undefined) };
+                return { createIndex: vi.fn(() => undefined) };
             }),
         };
 
@@ -664,14 +664,14 @@ describe("db operations", () => {
 
 type CursorStore<T> = {
     updates: any[];
-    openCursor: ReturnType<typeof mock>;
+    openCursor: ReturnType<typeof vi.fn>;
 };
 
 const createCursorStore = <T extends { id: string }>(
     values: T[],
 ): CursorStore<T> => {
     const updates: any[] = [];
-    const openCursor = mock(async () => {
+    const openCursor = vi.fn(async () => {
         const makeCursor = (index: number): any => {
             return {
                 value: values[index],

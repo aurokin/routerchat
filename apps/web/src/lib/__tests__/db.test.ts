@@ -1,4 +1,4 @@
-import { test, expect, describe, beforeEach, mock } from "bun:test";
+import { test, expect, describe, beforeEach, vi } from "vitest";
 import type { Attachment, ChatSession, Message } from "@/lib/types";
 
 describe("db.ts helpers", () => {
@@ -128,11 +128,11 @@ describe("db.ts getDB", () => {
 
     test("returns database connection", async () => {
         const mockDB = {
-            put: mock(() => Promise.resolve()),
-            get: mock(() => Promise.resolve()),
-            getAllFromIndex: mock(() => Promise.resolve()),
-            delete: mock(() => Promise.resolve()),
-            clear: mock(() => Promise.resolve()),
+            put: vi.fn(() => Promise.resolve()),
+            get: vi.fn(() => Promise.resolve()),
+            getAllFromIndex: vi.fn(() => Promise.resolve()),
+            delete: vi.fn(() => Promise.resolve()),
+            clear: vi.fn(() => Promise.resolve()),
         };
 
         expect(mockDB.put).toBeDefined();
@@ -145,7 +145,7 @@ describe("db.ts getDB", () => {
     test("caches promise", async () => {
         let callCount = 0;
         const mockDBPromise = Promise.resolve({
-            put: mock(() => Promise.resolve()),
+            put: vi.fn(() => Promise.resolve()),
         });
 
         const getCachedDB = () => {
@@ -165,7 +165,7 @@ describe("db.ts getDB", () => {
 describe("db.ts createChat", () => {
     test("stores chat in database", async () => {
         const storedChats: ChatSession[] = [];
-        const mockPut = mock(async (store: string, chat: ChatSession) => {
+        const mockPut = vi.fn(async (store: string, chat: ChatSession) => {
             storedChats.push(chat);
         });
 
@@ -187,7 +187,7 @@ describe("db.ts createChat", () => {
 
 describe("db.ts getChat", () => {
     test("returns chat by ID", async () => {
-        const mockGet = mock(
+        const mockGet = vi.fn(
             async (
                 store: string,
                 id: string,
@@ -271,7 +271,7 @@ describe("db.ts updateChat", () => {
             },
         ];
 
-        const mockPut = mock(async (store: string, chat: ChatSession) => {
+        const mockPut = vi.fn(async (store: string, chat: ChatSession) => {
             const index = storedChats.findIndex((c) => c.id === chat.id);
             if (index >= 0) {
                 storedChats[index] = chat;
@@ -372,7 +372,7 @@ describe("db.ts deleteChat", () => {
 describe("db.ts createMessage", () => {
     test("stores message with sessionId", async () => {
         const storedMessages: Message[] = [];
-        const mockPut = mock(async (store: string, message: Message) => {
+        const mockPut = vi.fn(async (store: string, message: Message) => {
             storedMessages.push(message);
         });
 

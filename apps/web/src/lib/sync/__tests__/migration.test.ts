@@ -4,7 +4,7 @@
  * Focused tests for migration helpers used when enabling cloud sync.
  */
 
-import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ChatSession, Message, Attachment, Skill } from "@/lib/types";
 import type { StorageAdapter } from "@/lib/sync/storage-adapter";
 import type { ConvexClientInterface, ConvexId } from "@/lib/sync/convex-types";
@@ -60,16 +60,16 @@ describe("migrateLocalToCloud", () => {
         } as Record<string, Attachment>;
 
         const cloudAdapter = {
-            createChat: mock(async () => "chat-1"),
-            createMessage: mock(async () => "msg-1"),
-            saveAttachment: mock(async () => "att-1"),
+            createChat: vi.fn(async () => "chat-1"),
+            createMessage: vi.fn(async () => "msg-1"),
+            saveAttachment: vi.fn(async () => "att-1"),
         } as unknown as StorageAdapter;
 
         const localAdapter = {
-            getAllChats: mock(async () => [chat]),
-            getMessagesByChat: mock(async () => messages),
-            getAttachment: mock(async (id: string) => attachments[id]),
-            getAttachmentsByMessage: mock(async () => []),
+            getAllChats: vi.fn(async () => [chat]),
+            getMessagesByChat: vi.fn(async () => messages),
+            getAttachment: vi.fn(async (id: string) => attachments[id]),
+            getAttachmentsByMessage: vi.fn(async () => []),
         } as unknown as StorageAdapter;
 
         const progressUpdates: MigrationProgress[] = [];
@@ -106,13 +106,13 @@ describe("migrateSkillsToCloud", () => {
             },
         ];
         const localStorageMock = {
-            getItem: mock((key: string) =>
+            getItem: vi.fn((key: string) =>
                 key === "routerchat-skills" ? JSON.stringify(skills) : null,
             ),
-            setItem: mock(() => undefined),
-            removeItem: mock(() => undefined),
-            clear: mock(() => undefined),
-            key: mock(() => null),
+            setItem: vi.fn(() => undefined),
+            removeItem: vi.fn(() => undefined),
+            clear: vi.fn(() => undefined),
+            key: vi.fn(() => null),
             length: 0,
         } as unknown as Storage;
 
@@ -127,7 +127,7 @@ describe("migrateSkillsToCloud", () => {
     });
 
     it("creates skill records for each local skill", async () => {
-        const mutation = mock(async () => "skill-id");
+        const mutation = vi.fn(async () => "skill-id");
         const client = {
             mutation,
         } as unknown as ConvexClientInterface;

@@ -8,7 +8,7 @@
  * on the server and are no-ops for setters.
  */
 
-import { describe, it, expect } from "bun:test";
+import { describe, it, expect } from "vitest";
 import type { SyncState } from "@/lib/sync/types";
 import { DEFAULT_SYNC_METADATA } from "@/lib/sync/types";
 

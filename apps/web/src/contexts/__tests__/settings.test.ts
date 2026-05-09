@@ -1,4 +1,4 @@
-import { test, expect, describe, mock } from "bun:test";
+import { test, expect, describe, vi } from "vitest";
 import { APP_DEFAULT_MODEL, type OpenRouterModel } from "@shared/core/models";
 import type { Skill } from "@/lib/types";
 import { selectInitialDefaultModel } from "@/contexts/SettingsContext";

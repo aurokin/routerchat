@@ -1,4 +1,4 @@
-import { describe, it, expect, mock } from "bun:test";
+import { describe, it, expect, vi } from "vitest";
 import { clearCloudImagesAndRefresh } from "@/lib/sync/clear-cloud-images";
 
 describe("clearCloudImagesAndRefresh", () => {
@@ -6,20 +6,20 @@ describe("clearCloudImagesAndRefresh", () => {
         const events: string[] = [];
 
         const convexClient = {
-            mutation: mock(async () => {
+            mutation: vi.fn(async () => {
                 events.push("mutation");
             }),
         } as any;
 
-        const clearAttachmentCaches = mock(async () => {
+        const clearAttachmentCaches = vi.fn(async () => {
             events.push("clearCaches");
         });
 
-        const onCloudImagesCleared = mock(() => {
+        const onCloudImagesCleared = vi.fn(() => {
             events.push("invalidated");
         });
 
-        const refreshQuotaStatus = mock(async () => {
+        const refreshQuotaStatus = vi.fn(async () => {
             events.push("refresh");
         });
 

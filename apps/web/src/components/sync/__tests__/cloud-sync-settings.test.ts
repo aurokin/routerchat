@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, test } from "vitest";
 import { getCloudAutoEnableDecision } from "@/components/sync/CloudSyncSettings";
 import type { SyncState } from "@/lib/sync/types";
 

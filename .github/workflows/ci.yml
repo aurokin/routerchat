@@ -72,3 +72,7 @@ jobs:
               env:
                   NEXT_TELEMETRY_DISABLED: "1"
               run: bun run build
+
+            - name: Knip (dead-code detection)
+              run: bun run knip
+              continue-on-error: true
