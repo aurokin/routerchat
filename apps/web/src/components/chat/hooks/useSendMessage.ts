@@ -48,6 +48,7 @@ export interface UseSendMessageParams {
     selectedSkill: Skill | null;
     models: OpenRouterModel[];
     storageAdapter: StorageAdapter;
+    promptCacheEnabled: boolean;
     /** Returns the freshest skill snapshot, including keybinding-driven changes. */
     getLastSkillChange: () => { skill: Skill | null; mode: "auto" | "manual" };
     addMessage: (msg: NewMessageInput) => Promise<Message>;
@@ -80,6 +81,17 @@ interface UseSendMessageReturn {
     handleRetry: () => Promise<void>;
 }
 
+/**
+ * Build the system prefix that gets cached when prompt caching is enabled.
+ * Skill prompt only — search guidance is folded in by the request builder
+ * when search is on.
+ */
+function buildCachedSystemPrefix(skill: Skill | null): string | undefined {
+    if (!skill) return undefined;
+    const trimmed = skill.prompt.trim();
+    return trimmed.length > 0 ? trimmed : undefined;
+}
+
 function getChatTitleUpdate(
     chat: ChatSession | null,
     content: string,
@@ -105,6 +117,7 @@ export function useSendMessage(
         selectedSkill,
         models,
         storageAdapter,
+        promptCacheEnabled,
         getLastSkillChange,
         addMessage,
         updateMessage,
@@ -275,14 +288,23 @@ export function useSendMessage(
                 }> = [];
 
                 for (const m of messagesSnapshot) {
-                    let messageContent: MessageContent = m.contextContent;
+                    // When caching is on we send the skill prompt as a cached
+                    // system message, so historical messages that had it
+                    // inlined into contextContent must use the raw user
+                    // content instead — otherwise the skill text would
+                    // appear twice and break cache prefix stability.
+                    const baseContent =
+                        promptCacheEnabled && m.skill
+                            ? m.content
+                            : m.contextContent;
+                    let messageContent: MessageContent = baseContent;
 
                     if (m.attachmentIds && m.attachmentIds.length > 0) {
                         const msgAttachments =
                             await storageAdapter.getAttachmentsByMessage(m.id);
                         if (msgAttachments.length > 0) {
                             messageContent = buildMessageContent(
-                                m.contextContent,
+                                baseContent,
                                 msgAttachments,
                             );
                         }
@@ -307,10 +329,14 @@ export function useSendMessage(
                         createdAt: Date.now(),
                     }));
 
+                const newUserContent =
+                    promptCacheEnabled && skillForMessage
+                        ? content
+                        : contextContent;
                 currentMessages.push({
                     role: "user",
                     content: buildMessageContent(
-                        contextContent,
+                        newUserContent,
                         newUserAttachments,
                     ),
                 });
@@ -332,6 +358,10 @@ export function useSendMessage(
                     thinking: undefined,
                 });
 
+                const cachedSystemPrefix = promptCacheEnabled
+                    ? buildCachedSystemPrefix(skillForMessage)
+                    : undefined;
+
                 const response = await sendMessage(
                     apiKey,
                     currentMessages,
@@ -349,6 +379,10 @@ export function useSendMessage(
                             content: fullResponse,
                             thinking: fullThinking || undefined,
                         });
+                    },
+                    {
+                        cacheControl: promptCacheEnabled,
+                        systemPrefix: cachedSystemPrefix,
                     },
                 );
 
@@ -415,6 +449,7 @@ export function useSendMessage(
             getLastSkillChange,
             messages,
             models,
+            promptCacheEnabled,
             queueStreamingMessageUpdate,
             selectedSkill,
             setDefaultModel,

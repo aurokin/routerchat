@@ -33,6 +33,7 @@ import {
     HardDrive,
     Keyboard,
     ChevronDown,
+    Zap,
 } from "lucide-react";
 import { cn, externalLinkProps } from "@/lib/utils";
 const CloudSyncSettings = dynamic(
@@ -77,6 +78,8 @@ function SettingsPageContent() {
         clearApiKey,
         theme,
         setTheme,
+        promptCacheEnabled,
+        setPromptCacheEnabled,
         skills,
         addSkill,
         updateSkill,
@@ -511,6 +514,39 @@ function SettingsPageContent() {
                                 </span>
                             </div>
                         </div>
+                    </section>
+
+                    {/* Prompt caching */}
+                    <section className="card-deco mb-6">
+                        <div className="flex items-center gap-3 mb-4">
+                            <div className="w-8 h-8 bg-accent/10 flex items-center justify-center">
+                                <Zap size={16} className="text-accent" />
+                            </div>
+                            <h2 className="text-lg font-medium">
+                                Prompt caching
+                            </h2>
+                        </div>
+                        <p className="text-sm text-muted-foreground mb-4">
+                            Mark the system prompt and skill preamble with{" "}
+                            <code className="text-xs">cache_control</code> so
+                            providers that support OpenRouter prompt caching
+                            (e.g. Anthropic) can serve them from cache. Reduces
+                            cost on repeat turns of long-running chats.
+                        </p>
+                        <label className="flex items-center justify-between gap-4 cursor-pointer select-none border border-border bg-background-elevated px-4 py-3 hover:border-primary/40 transition-colors">
+                            <span className="text-sm font-medium">
+                                Enable prompt caching
+                            </span>
+                            <input
+                                type="checkbox"
+                                className="h-4 w-4 cursor-pointer accent-primary"
+                                checked={promptCacheEnabled}
+                                onChange={(e) =>
+                                    setPromptCacheEnabled(e.target.checked)
+                                }
+                                aria-label="Enable prompt caching"
+                            />
+                        </label>
                     </section>
 
                     {/* Theme & Keybindings */}

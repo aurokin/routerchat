@@ -28,6 +28,7 @@ interface SettingsContextType extends UserSettings {
     setDefaultModel: (modelId: string) => void;
     setDefaultThinking: (value: ThinkingLevel) => void;
     setDefaultSearchLevel: (level: SearchLevel) => void;
+    setPromptCacheEnabled: (enabled: boolean) => void;
     setTheme: (theme: UserSettings["theme"]) => void;
     toggleFavoriteModel: (modelId: string) => void;
     models: OpenRouterModel[];
@@ -54,6 +55,7 @@ const defaultSettings: UserSettings = {
     defaultSearchLevel: "none",
     theme: "system",
     favoriteModels: [],
+    promptCacheEnabled: false,
 };
 
 const SettingsContext = createContext<SettingsContextType | null>(null);
@@ -142,6 +144,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
             defaultSearchLevel: storage.getDefaultSearchLevel(),
             theme: storage.getTheme(),
             favoriteModels: storage.getFavoriteModels(),
+            promptCacheEnabled: storage.getPromptCacheEnabled(),
         }));
         setMounted(true);
     }, []);
@@ -225,6 +228,11 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
     const setDefaultSearchLevel = (level: SearchLevel) => {
         storage.setDefaultSearchLevel(level);
         setSettings((prev) => ({ ...prev, defaultSearchLevel: level }));
+    };
+
+    const setPromptCacheEnabled = (enabled: boolean) => {
+        storage.setPromptCacheEnabled(enabled);
+        setSettings((prev) => ({ ...prev, promptCacheEnabled: enabled }));
     };
 
     const setTheme = (theme: UserSettings["theme"]) => {
@@ -376,6 +384,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
                 setDefaultModel,
                 setDefaultThinking,
                 setDefaultSearchLevel,
+                setPromptCacheEnabled,
                 setTheme,
                 toggleFavoriteModel,
                 models,

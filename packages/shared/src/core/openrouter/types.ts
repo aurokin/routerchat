@@ -1,6 +1,16 @@
+/**
+ * `cache_control` is the OpenRouter prompt-cache marker. Providers that
+ * honour it (e.g. Anthropic) will serve marked content from cache when the
+ * prefix matches a recent request.
+ *
+ * Docs: https://openrouter.ai/docs/features/prompt-caching
+ */
+export type CacheControl = { type: "ephemeral" };
+
 export type TextContent = {
     type: "text";
     text: string;
+    cache_control?: CacheControl;
 };
 
 export type ImageUrlContent = {

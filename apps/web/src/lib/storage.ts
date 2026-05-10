@@ -8,6 +8,7 @@ const STORAGE_KEYS = {
     DEFAULT_MODEL: "routerchat-default-model",
     DEFAULT_THINKING: "routerchat-default-thinking",
     DEFAULT_SEARCH: "routerchat-default-search",
+    PROMPT_CACHE_ENABLED: "routerchat-prompt-cache-enabled",
     FAVORITE_MODELS: "routerchat-favorite-models",
     SKILLS: "routerchat-skills",
     DEFAULT_SKILL: "routerchat-default-skill",
@@ -203,6 +204,19 @@ export function getDefaultSearchLevel(): SearchLevel {
 export function setDefaultSearchLevel(level: SearchLevel): void {
     if (typeof window === "undefined") return;
     localStorage.setItem(STORAGE_KEYS.DEFAULT_SEARCH, level);
+}
+
+export function getPromptCacheEnabled(): boolean {
+    if (typeof window === "undefined") return false;
+    return localStorage.getItem(STORAGE_KEYS.PROMPT_CACHE_ENABLED) === "true";
+}
+
+export function setPromptCacheEnabled(enabled: boolean): void {
+    if (typeof window === "undefined") return;
+    localStorage.setItem(
+        STORAGE_KEYS.PROMPT_CACHE_ENABLED,
+        enabled ? "true" : "false",
+    );
 }
 
 export function getSkills(): Skill[] {

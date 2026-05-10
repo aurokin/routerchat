@@ -197,18 +197,26 @@ async function sendMessageWithXhr(
     });
 }
 
+export interface SendMessageOptions {
+    cacheControl?: boolean;
+    systemPrefix?: string;
+}
+
 export async function sendMessage(
     apiKey: string,
     messages: OpenRouterMessage[],
     session: ChatSession,
     model: OpenRouterModel | undefined,
     onChunk?: StreamChunkHandler,
+    options: SendMessageOptions = {},
 ): Promise<ChatCompletionResponse> {
     const requestBody = buildChatCompletionRequest({
         messages,
         session,
         model,
         stream: !!onChunk,
+        cacheControl: options.cacheControl,
+        systemPrefix: options.systemPrefix,
     });
 
     if (onChunk) {

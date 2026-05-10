@@ -60,6 +60,13 @@ export interface UserSettings {
     defaultSearchLevel: SearchLevel;
     theme: "light" | "dark" | "system";
     favoriteModels: string[];
+    /**
+     * When enabled, the request builder marks the system prompt and skill
+     * preamble with `cache_control: ephemeral` so providers that honour
+     * OpenRouter's prompt-caching semantics can serve them from cache.
+     * Default off — opt-in only.
+     */
+    promptCacheEnabled: boolean;
 }
 
 export interface Attachment {

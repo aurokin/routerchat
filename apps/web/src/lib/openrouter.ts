@@ -1,4 +1,5 @@
 import type { ChatSession, Attachment } from "@/lib/types";
+export type { SendMessageOptions } from "@shared/core/openrouter";
 import {
     SupportedParameter,
     modelSupportsReasoning,
