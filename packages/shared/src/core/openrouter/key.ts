@@ -99,3 +99,50 @@ export async function getKeyInfo(
         return null;
     }
 }
+
+/**
+ * Account-level credit balance from OpenRouter's `GET /credits` endpoint.
+ * Distinct from {@link KeyInfo.usage}/`limit`, which are per-key BYOK metrics.
+ */
+export interface CreditsInfo {
+    /** Lifetime credits purchased (USD). */
+    totalCredits: number;
+    /** Lifetime credits consumed (USD). */
+    totalUsage: number;
+}
+
+interface CreditsEnvelope {
+    data?: {
+        total_credits?: number;
+        total_usage?: number;
+    };
+}
+
+function toCreditsInfo(envelope: CreditsEnvelope): CreditsInfo {
+    const data = envelope.data ?? {};
+    return {
+        totalCredits: data.total_credits ?? 0,
+        totalUsage: data.total_usage ?? 0,
+    };
+}
+
+/**
+ * Fetch the account-level credit balance for an API key. Returns `null` on
+ * non-OK / network / non-JSON responses (callers treat as "unavailable").
+ */
+export async function getCredits(
+    apiKey: string,
+    options: { signal?: AbortSignal } = {},
+): Promise<CreditsInfo | null> {
+    try {
+        const response = await fetch(`${OPENROUTER_API_BASE}/credits`, {
+            headers: buildHeaders({ apiKey }),
+            signal: options.signal,
+        });
+        if (!response.ok) return null;
+        const envelope = (await response.json()) as CreditsEnvelope;
+        return toCreditsInfo(envelope);
+    } catch {
+        return null;
+    }
+}

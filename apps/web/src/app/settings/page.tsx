@@ -11,7 +11,12 @@ import { SettingsLocalData } from "./_components/SettingsLocalData";
 import { useChat } from "@/contexts/ChatContext";
 import { useSync } from "@/contexts/SyncContext";
 import { useSettings } from "@/contexts/SettingsContext";
-import { getKeyInfo, type KeyInfo } from "@/lib/openrouter";
+import {
+    getKeyInfo,
+    getCredits,
+    type KeyInfo,
+    type CreditsInfo,
+} from "@/lib/openrouter";
 import {
     Settings,
     Key,
@@ -72,6 +77,8 @@ function SettingsPageContent() {
     const [validating, setValidating] = useState(false);
     // null = no result yet; KeyInfo = valid; false = explicitly invalid
     const [keyInfo, setKeyInfo] = useState<KeyInfo | false | null>(null);
+    // null = no result yet; CreditsInfo = success; false = tried, unavailable
+    const [credits, setCredits] = useState<CreditsInfo | false | null>(null);
     const [saving, setSaving] = useState(false);
     // Tracks in-flight `getKeyInfo` calls so a Clear (or a newer Validate)
     // can abort the previous request and discard its result.
@@ -149,10 +156,15 @@ function SettingsPageContent() {
 
         setValidating(true);
         setKeyInfo(null);
-        const info = await getKeyInfo(key, { signal: controller.signal });
+        setCredits(null);
+        const [info, creditsInfo] = await Promise.all([
+            getKeyInfo(key, { signal: controller.signal }),
+            getCredits(key, { signal: controller.signal }),
+        ]);
         if (controller.signal.aborted) return false;
         keyInfoAbortRef.current = null;
         setKeyInfo(info ?? false);
+        setCredits(creditsInfo ?? false);
         setValidating(false);
         return info !== null;
     };
@@ -171,6 +183,7 @@ function SettingsPageContent() {
             if (!trimmedKey) {
                 clearApiKey();
                 setKeyInfo(null);
+                setCredits(null);
                 return;
             }
 
@@ -189,22 +202,26 @@ function SettingsPageContent() {
         setNewApiKey("");
         clearApiKey();
         setKeyInfo(null);
+        setCredits(null);
         setValidating(false);
     };
 
-    // Auto-fetch key info on mount when an apiKey is already set, so the
-    // user lands on the pane with the metadata visible without re-validating.
+    // Auto-fetch key info + credits on mount when an apiKey is already set,
+    // so the user lands on the pane with metadata visible without
+    // re-validating.
     useEffect(() => {
         if (!apiKey) return;
         const controller = new AbortController();
         keyInfoAbortRef.current = controller;
         void (async () => {
-            const info = await getKeyInfo(apiKey, {
-                signal: controller.signal,
-            });
+            const [info, creditsInfo] = await Promise.all([
+                getKeyInfo(apiKey, { signal: controller.signal }),
+                getCredits(apiKey, { signal: controller.signal }),
+            ]);
             if (controller.signal.aborted) return;
             keyInfoAbortRef.current = null;
             setKeyInfo(info ?? false);
+            setCredits(creditsInfo ?? false);
         })();
         return () => {
             controller.abort();
@@ -284,6 +301,7 @@ function SettingsPageContent() {
                                     onChange={(e) => {
                                         setNewApiKey(e.target.value);
                                         setKeyInfo(null);
+                                        setCredits(null);
                                     }}
                                     placeholder="sk-or-..."
                                     className="input-deco font-mono"
@@ -392,6 +410,36 @@ function SettingsPageContent() {
                                             <>
                                                 <span>Tier</span>
                                                 <span>Free</span>
+                                            </>
+                                        )}
+                                        {credits && (
+                                            <>
+                                                <span>Credits</span>
+                                                <span className="tabular-nums">
+                                                    {formatCost(
+                                                        Math.max(
+                                                            0,
+                                                            credits.totalCredits -
+                                                                credits.totalUsage,
+                                                        ),
+                                                    )}{" "}
+                                                    remaining ·{" "}
+                                                    {formatCost(
+                                                        credits.totalUsage,
+                                                    )}{" "}
+                                                    used of{" "}
+                                                    {formatCost(
+                                                        credits.totalCredits,
+                                                    )}
+                                                </span>
+                                            </>
+                                        )}
+                                        {credits === false && (
+                                            <>
+                                                <span>Credits</span>
+                                                <span className="text-muted-foreground/60">
+                                                    unavailable
+                                                </span>
                                             </>
                                         )}
                                     </div>

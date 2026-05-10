@@ -7,6 +7,7 @@ import {
     sendMessage,
     validateApiKey,
     getKeyInfo,
+    getCredits,
     type ReasoningDetailChunk,
     type OpenRouterMessage,
     type ChatCompletionResponse,
@@ -800,6 +801,96 @@ describe("getKeyInfo", () => {
 
         expect(
             await getKeyInfo("abort-key", { signal: controller.signal }),
+        ).toBeNull();
+    });
+});
+
+describe("getCredits", () => {
+    it("normalizes the wire response into CreditsInfo", async () => {
+        mockFetch(
+            () =>
+                new Response(
+                    JSON.stringify({
+                        data: { total_credits: 25, total_usage: 7.5 },
+                    }),
+                    {
+                        status: 200,
+                        headers: { "Content-Type": "application/json" },
+                    },
+                ),
+        );
+
+        expect(await getCredits("valid-key")).toEqual({
+            totalCredits: 25,
+            totalUsage: 7.5,
+        });
+    });
+
+    it("hits the /credits endpoint", async () => {
+        mockFetch(
+            () =>
+                new Response(
+                    JSON.stringify({
+                        data: { total_credits: 0, total_usage: 0 },
+                    }),
+                    {
+                        status: 200,
+                        headers: { "Content-Type": "application/json" },
+                    },
+                ),
+        );
+
+        await getCredits("valid-key");
+        expect(String(lastRequest?.input)).toContain("/credits");
+    });
+
+    it("defaults missing fields to zero on empty success body", async () => {
+        mockFetch(
+            () =>
+                new Response("{}", {
+                    status: 200,
+                    headers: { "Content-Type": "application/json" },
+                }),
+        );
+
+        expect(await getCredits("valid-key")).toEqual({
+            totalCredits: 0,
+            totalUsage: 0,
+        });
+    });
+
+    it("returns null on non-OK response", async () => {
+        mockFetch(() => new Response(null, { status: 401 }));
+        expect(await getCredits("bad-key")).toBeNull();
+    });
+
+    it("returns null on network error", async () => {
+        mockFetch(() => {
+            throw new Error("network");
+        });
+        expect(await getCredits("bad-key")).toBeNull();
+    });
+
+    it("returns null when the response body is not JSON", async () => {
+        mockFetch(
+            () =>
+                new Response("not json", {
+                    status: 200,
+                    headers: { "Content-Type": "text/plain" },
+                }),
+        );
+        expect(await getCredits("bad-body-key")).toBeNull();
+    });
+
+    it("aborts when the caller signals abort", async () => {
+        const controller = new AbortController();
+        controller.abort();
+        mockFetch(() => {
+            throw new DOMException("aborted", "AbortError");
+        });
+
+        expect(
+            await getCredits("abort-key", { signal: controller.signal }),
         ).toBeNull();
     });
 });

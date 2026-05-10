@@ -42,6 +42,12 @@ export {
 export { buildReasoningOptions, mapReasoningEffort } from "./reasoning";
 export { buildWebSearchTool } from "./web-search";
 export { fetchModels } from "./models";
-export { validateApiKey, getKeyInfo, type KeyInfo } from "./key";
+export {
+    validateApiKey,
+    getKeyInfo,
+    getCredits,
+    type KeyInfo,
+    type CreditsInfo,
+} from "./key";
 export { sendMessage, type SendMessageOptions } from "./send-message";
 export { toMessageUsage } from "./usage";
