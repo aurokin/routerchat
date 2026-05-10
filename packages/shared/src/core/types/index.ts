@@ -88,6 +88,12 @@ export interface Attachment {
     width: number;
     height: number;
     size: number;
+    /**
+     * Remote image URL when this attachment is a passthrough reference
+     * rather than locally-stored bytes. When set, `data` is the empty string
+     * and width/height/size are 0 — we delegate fetching to the provider.
+     */
+    url?: string;
     createdAt: number;
     purgedAt?: number;
 }
@@ -101,4 +107,6 @@ export interface PendingAttachment {
     height: number;
     size: number;
     preview: string;
+    /** See {@link Attachment.url}. */
+    url?: string;
 }

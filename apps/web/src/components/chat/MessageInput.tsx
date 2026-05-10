@@ -30,6 +30,7 @@ import {
 } from "@/lib/imageProcessing";
 import {
     hasImageInClipboardEvent,
+    parseImageUrlFromClipboardEvent,
     readImageFromClipboardEvent,
 } from "@/lib/clipboard";
 import {
@@ -277,9 +278,34 @@ export const MessageInput = forwardRef<HTMLTextAreaElement, MessageInputProps>(
                             }),
                         ]);
                     }
+                    return;
+                }
+
+                // URL passthrough: only honoured in local-only mode for now
+                // (cloud sync of URL attachments requires Convex schema work).
+                const isCloudStorage =
+                    storageAdapter instanceof ConvexStorageAdapter;
+                if (isCloudStorage) return;
+
+                const urlImage =
+                    parseImageUrlFromClipboardEvent(clipboardEvent);
+                if (urlImage) {
+                    e.preventDefault();
+                    const attachment: PendingAttachment = {
+                        id: generateUUID(),
+                        type: "image",
+                        mimeType: urlImage.mimeType,
+                        data: "",
+                        width: 0,
+                        height: 0,
+                        size: 0,
+                        preview: urlImage.url,
+                        url: urlImage.url,
+                    };
+                    setPendingAttachments((prev) => [...prev, attachment]);
                 }
             },
-            [visionSupported, processFiles],
+            [visionSupported, processFiles, storageAdapter],
         );
 
         useEffect(() => {

@@ -80,6 +80,32 @@ describe("openrouter helpers", () => {
         expect(buildMessageContent("hello")).toBe("hello");
     });
 
+    it("uses attachment.url for URL-passthrough attachments instead of data URI", () => {
+        const attachments: Attachment[] = [
+            {
+                id: "att-url",
+                messageId: "message-1",
+                type: "image",
+                mimeType: "image/png",
+                data: "",
+                width: 0,
+                height: 0,
+                size: 0,
+                url: "https://example.com/pic.png",
+                createdAt: 1,
+            },
+        ];
+
+        const content = buildMessageContent("hi", attachments);
+        expect(Array.isArray(content)).toBe(true);
+        if (Array.isArray(content)) {
+            expect(content[0]).toEqual({
+                type: "image_url",
+                image_url: { url: "https://example.com/pic.png" },
+            });
+        }
+    });
+
     it("extracts reasoning text from detail chunks", () => {
         const details: ReasoningDetailChunk[] = [
             { id: "1", type: "reasoning.text", text: "Hello " },

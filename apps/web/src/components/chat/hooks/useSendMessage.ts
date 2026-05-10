@@ -207,6 +207,7 @@ export function useSendMessage(
                           width: pa.width,
                           height: pa.height,
                           size: pa.size,
+                          ...(pa.url ? { url: pa.url } : {}),
                           createdAt: Date.now(),
                       }))
                     : [];
@@ -334,6 +335,7 @@ export function useSendMessage(
                         width: pa.width,
                         height: pa.height,
                         size: pa.size,
+                        ...(pa.url ? { url: pa.url } : {}),
                         createdAt: Date.now(),
                     }));
 

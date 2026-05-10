@@ -23,11 +23,14 @@ export function buildMessageContent(
     const content: Array<TextContent | ImageUrlContent> = [];
 
     for (const attachment of attachments) {
+        // URL-passthrough attachments carry a remote image URL; everything
+        // else is locally-stored bytes we encode as a data URI.
+        const url =
+            attachment.url ??
+            `data:${attachment.mimeType};base64,${attachment.data}`;
         content.push({
             type: "image_url",
-            image_url: {
-                url: `data:${attachment.mimeType};base64,${attachment.data}`,
-            },
+            image_url: { url },
         });
     }
 

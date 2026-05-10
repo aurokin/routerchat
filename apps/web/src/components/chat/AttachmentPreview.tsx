@@ -65,7 +65,9 @@ export function AttachmentPreview({
                         </button>
                     )}
                     <span className="absolute bottom-0 left-0 right-0 text-[10px] text-center text-muted-foreground bg-background/80 py-0.5 truncate px-1">
-                        {formatFileSize(attachment.size)}
+                        {attachment.url
+                            ? "URL"
+                            : formatFileSize(attachment.size)}
                     </span>
                 </div>
             ))}

@@ -78,6 +78,46 @@ export async function readClipboardImage(): Promise<ClipboardImage | null> {
     return null;
 }
 
+/**
+ * Match a clipboard paste payload that is _just_ a single image URL with a
+ * recognised image extension. Used for the URL-passthrough attachment flow
+ * — the provider fetches the URL directly rather than us downloading and
+ * re-encoding the bytes. Returns the parsed URL string when matched,
+ * `null` when the paste should fall through to normal text handling.
+ */
+const IMAGE_URL_EXTENSION_RE = /\.(png|jpe?g|gif|webp|bmp|svg)(\?.*)?$/i;
+const IMAGE_URL_MAX_LENGTH = 2048;
+
+export function parseImageUrlFromClipboardEvent(
+    event: ClipboardEvent,
+): { url: string; mimeType: string } | null {
+    const text = event.clipboardData?.getData("text/plain")?.trim();
+    if (!text || text.includes("\n") || text.length > IMAGE_URL_MAX_LENGTH)
+        return null;
+
+    let parsed: URL;
+    try {
+        parsed = new URL(text);
+    } catch {
+        return null;
+    }
+    if (parsed.protocol !== "https:" && parsed.protocol !== "http:") {
+        return null;
+    }
+
+    const match = parsed.pathname.match(IMAGE_URL_EXTENSION_RE);
+    if (!match) return null;
+
+    const ext = match[1]?.toLowerCase();
+    const mimeType =
+        ext === "jpg" || ext === "jpeg"
+            ? "image/jpeg"
+            : ext === "svg"
+              ? "image/svg+xml"
+              : `image/${ext}`;
+    return { url: parsed.toString(), mimeType };
+}
+
 // Check if clipboard has an image using Clipboard API (async)
 export async function hasClipboardImage(): Promise<boolean> {
     if (!isClipboardSupported()) {

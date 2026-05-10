@@ -78,14 +78,16 @@ export function MessageList({ messages, sending, loading }: MessageListProps) {
                         if (
                             attachment &&
                             !attachment.purgedAt &&
-                            attachment.data
+                            (attachment.url || attachment.data)
                         ) {
                             images.push({
                                 id: attachment.id,
-                                src: createDataUrl(
-                                    attachment.data,
-                                    attachment.mimeType,
-                                ),
+                                src: attachment.url
+                                    ? attachment.url
+                                    : createDataUrl(
+                                          attachment.data,
+                                          attachment.mimeType,
+                                      ),
                                 alt: `Image ${attachment.width}x${attachment.height}`,
                                 timestamp: attachment.createdAt,
                             });
@@ -262,38 +264,45 @@ function MessageAttachments({
 
     return (
         <div className="flex flex-wrap gap-2 mb-3">
-            {attachments.map((attachment, index) => (
-                <button
-                    key={attachment.id}
-                    onClick={() => onImageClick(attachment.id)}
-                    disabled={Boolean(attachment.purgedAt) || !attachment.data}
-                    className={cn(
-                        "relative w-20 h-20 bg-muted/30 border border-border/50 overflow-hidden transition-colors",
-                        Boolean(attachment.purgedAt) || !attachment.data
-                            ? "opacity-70 cursor-not-allowed"
-                            : "hover:border-primary/50 cursor-pointer",
-                    )}
-                >
-                    {Boolean(attachment.purgedAt) || !attachment.data ? (
-                        <div className="w-full h-full flex flex-col items-center justify-center gap-1 text-muted-foreground/70">
-                            <ImageIcon size={18} />
-                            <span className="text-[10px] uppercase tracking-wider">
-                                Removed
-                            </span>
-                        </div>
-                    ) : (
-                        <img
-                            src={createDataUrl(
-                                attachment.data,
-                                attachment.mimeType,
-                            )}
-                            alt={`Attachment ${index + 1}`}
-                            className="w-full h-full object-cover"
-                            loading="lazy"
-                        />
-                    )}
-                </button>
-            ))}
+            {attachments.map((attachment, index) => {
+                const hasRenderable = Boolean(
+                    attachment.url || attachment.data,
+                );
+                const unavailable =
+                    Boolean(attachment.purgedAt) || !hasRenderable;
+                const imgSrc = attachment.url
+                    ? attachment.url
+                    : createDataUrl(attachment.data, attachment.mimeType);
+                return (
+                    <button
+                        key={attachment.id}
+                        onClick={() => onImageClick(attachment.id)}
+                        disabled={unavailable}
+                        className={cn(
+                            "relative w-20 h-20 bg-muted/30 border border-border/50 overflow-hidden transition-colors",
+                            unavailable
+                                ? "opacity-70 cursor-not-allowed"
+                                : "hover:border-primary/50 cursor-pointer",
+                        )}
+                    >
+                        {unavailable ? (
+                            <div className="w-full h-full flex flex-col items-center justify-center gap-1 text-muted-foreground/70">
+                                <ImageIcon size={18} />
+                                <span className="text-[10px] uppercase tracking-wider">
+                                    Removed
+                                </span>
+                            </div>
+                        ) : (
+                            <img
+                                src={imgSrc}
+                                alt={`Attachment ${index + 1}`}
+                                className="w-full h-full object-cover"
+                                loading="lazy"
+                            />
+                        )}
+                    </button>
+                );
+            })}
         </div>
     );
 }
