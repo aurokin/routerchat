@@ -6,6 +6,7 @@ import {
     extractReasoningText,
     sendMessage,
     validateApiKey,
+    getKeyInfo,
     type ReasoningDetailChunk,
     type OpenRouterMessage,
     type ChatCompletionResponse,
@@ -656,5 +657,149 @@ describe("validateApiKey", () => {
         });
 
         expect(await validateApiKey("bad-key")).toBe(false);
+    });
+});
+
+describe("getKeyInfo", () => {
+    it("normalizes the wire response into KeyInfo", async () => {
+        mockFetch(
+            () =>
+                new Response(
+                    JSON.stringify({
+                        data: {
+                            label: "ci-key",
+                            usage: 0.1234,
+                            limit: 5,
+                            limit_remaining: 4.8766,
+                            is_free_tier: false,
+                            rate_limit: { requests: 200, interval: "10s" },
+                        },
+                    }),
+                    {
+                        status: 200,
+                        headers: { "Content-Type": "application/json" },
+                    },
+                ),
+        );
+
+        const info = await getKeyInfo("valid-key");
+        expect(info).toEqual({
+            label: "ci-key",
+            usage: 0.1234,
+            limit: 5,
+            limitRemaining: 4.8766,
+            isFreeTier: false,
+            rateLimit: { requests: 200, interval: "10s" },
+        });
+    });
+
+    it("handles missing optional fields and null limits", async () => {
+        mockFetch(
+            () =>
+                new Response(
+                    JSON.stringify({
+                        data: {
+                            usage: 0,
+                            limit: null,
+                            limit_remaining: null,
+                            is_free_tier: true,
+                        },
+                    }),
+                    {
+                        status: 200,
+                        headers: { "Content-Type": "application/json" },
+                    },
+                ),
+        );
+
+        const info = await getKeyInfo("free-key");
+        expect(info).toEqual({
+            label: "",
+            usage: 0,
+            limit: null,
+            limitRemaining: null,
+            isFreeTier: true,
+            rateLimit: undefined,
+        });
+    });
+
+    it("returns null on non-OK response", async () => {
+        mockFetch(() => new Response(null, { status: 401 }));
+        expect(await getKeyInfo("bad-key")).toBeNull();
+    });
+
+    it("returns null on network error", async () => {
+        mockFetch(() => {
+            throw new Error("network");
+        });
+        expect(await getKeyInfo("bad-key")).toBeNull();
+    });
+
+    it("returns a defaulted KeyInfo when the body is 200 but empty", async () => {
+        mockFetch(
+            () =>
+                new Response("{}", {
+                    status: 200,
+                    headers: { "Content-Type": "application/json" },
+                }),
+        );
+
+        const info = await getKeyInfo("valid-key");
+        expect(info).toEqual({
+            label: "",
+            usage: 0,
+            limit: null,
+            limitRemaining: null,
+            isFreeTier: false,
+            rateLimit: undefined,
+        });
+    });
+
+    it("drops rate_limit when interval is missing", async () => {
+        mockFetch(
+            () =>
+                new Response(
+                    JSON.stringify({
+                        data: {
+                            usage: 0,
+                            limit: null,
+                            limit_remaining: null,
+                            is_free_tier: false,
+                            rate_limit: { requests: 200 },
+                        },
+                    }),
+                    {
+                        status: 200,
+                        headers: { "Content-Type": "application/json" },
+                    },
+                ),
+        );
+
+        const info = await getKeyInfo("partial-rate-key");
+        expect(info?.rateLimit).toBeUndefined();
+    });
+
+    it("returns null when the response body is not JSON", async () => {
+        mockFetch(
+            () =>
+                new Response("oops not json", {
+                    status: 200,
+                    headers: { "Content-Type": "text/plain" },
+                }),
+        );
+
+        expect(await getKeyInfo("munged-body-key")).toBeNull();
+    });
+
+    it("aborts when the caller signals abort", async () => {
+        const controller = new AbortController();
+        controller.abort();
+        mockFetch(() => {
+            throw new DOMException("aborted", "AbortError");
+        });
+
+        expect(
+            await getKeyInfo("abort-key", { signal: controller.signal }),
+        ).toBeNull();
     });
 });

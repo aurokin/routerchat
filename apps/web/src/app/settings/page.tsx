@@ -5,12 +5,13 @@ import dynamic from "next/dynamic";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Sidebar } from "@/components/chat/Sidebar";
 import { KeybindingsContent } from "@/components/keybindings/KeybindingsContent";
+import { formatCost } from "@/components/chat/ChatUsageSummary";
 import { SettingsSkills } from "./_components/SettingsSkills";
 import { SettingsLocalData } from "./_components/SettingsLocalData";
 import { useChat } from "@/contexts/ChatContext";
 import { useSync } from "@/contexts/SyncContext";
 import { useSettings } from "@/contexts/SettingsContext";
-import { validateApiKey } from "@/lib/openrouter";
+import { getKeyInfo, type KeyInfo } from "@/lib/openrouter";
 import {
     Settings,
     Key,
@@ -69,10 +70,12 @@ function SettingsPageContent() {
     const [newApiKey, setNewApiKey] = useState(apiKey || "");
     const lastApiKeyRef = useRef<string | null>(apiKey ?? null);
     const [validating, setValidating] = useState(false);
-    const [validationResult, setValidationResult] = useState<boolean | null>(
-        null,
-    );
+    // null = no result yet; KeyInfo = valid; false = explicitly invalid
+    const [keyInfo, setKeyInfo] = useState<KeyInfo | false | null>(null);
     const [saving, setSaving] = useState(false);
+    // Tracks in-flight `getKeyInfo` calls so a Clear (or a newer Validate)
+    // can abort the previous request and discard its result.
+    const keyInfoAbortRef = useRef<AbortController | null>(null);
     const searchParams = useSearchParams();
     const [highlightCloudSync, setHighlightCloudSync] = useState(false);
     const [highlightApiKey, setHighlightApiKey] = useState(false);
@@ -140,12 +143,18 @@ function SettingsPageContent() {
     }, [clearCurrentChat, currentChat, router]);
 
     const validateCurrentKey = async (key: string) => {
+        keyInfoAbortRef.current?.abort();
+        const controller = new AbortController();
+        keyInfoAbortRef.current = controller;
+
         setValidating(true);
-        setValidationResult(null);
-        const isValid = await validateApiKey(key);
-        setValidationResult(isValid);
+        setKeyInfo(null);
+        const info = await getKeyInfo(key, { signal: controller.signal });
+        if (controller.signal.aborted) return false;
+        keyInfoAbortRef.current = null;
+        setKeyInfo(info ?? false);
         setValidating(false);
-        return isValid;
+        return info !== null;
     };
 
     const handleValidate = async () => {
@@ -161,7 +170,7 @@ function SettingsPageContent() {
             // Only allow saving an unvalidated key if the user is explicitly clearing it.
             if (!trimmedKey) {
                 clearApiKey();
-                setValidationResult(null);
+                setKeyInfo(null);
                 return;
             }
 
@@ -175,10 +184,32 @@ function SettingsPageContent() {
     };
 
     const handleClear = () => {
+        keyInfoAbortRef.current?.abort();
+        keyInfoAbortRef.current = null;
         setNewApiKey("");
         clearApiKey();
-        setValidationResult(null);
+        setKeyInfo(null);
+        setValidating(false);
     };
+
+    // Auto-fetch key info on mount when an apiKey is already set, so the
+    // user lands on the pane with the metadata visible without re-validating.
+    useEffect(() => {
+        if (!apiKey) return;
+        const controller = new AbortController();
+        keyInfoAbortRef.current = controller;
+        void (async () => {
+            const info = await getKeyInfo(apiKey, {
+                signal: controller.signal,
+            });
+            if (controller.signal.aborted) return;
+            keyInfoAbortRef.current = null;
+            setKeyInfo(info ?? false);
+        })();
+        return () => {
+            controller.abort();
+        };
+    }, [apiKey]);
 
     return (
         <div className="flex h-screen">
@@ -252,7 +283,7 @@ function SettingsPageContent() {
                                     value={newApiKey}
                                     onChange={(e) => {
                                         setNewApiKey(e.target.value);
-                                        setValidationResult(null);
+                                        setKeyInfo(null);
                                     }}
                                     placeholder="sk-or-..."
                                     className="input-deco font-mono"
@@ -318,16 +349,56 @@ function SettingsPageContent() {
                                 )}
                             </div>
 
-                            {validationResult === true && (
-                                <div className="flex items-center gap-2 text-success px-3 py-2 bg-success/5 border border-success/20">
-                                    <Check size={14} />
-                                    <span className="text-sm font-medium">
-                                        Valid API key
-                                    </span>
+                            {keyInfo && (
+                                <div className="px-3 py-2.5 bg-success/5 border border-success/20 space-y-1.5">
+                                    <div className="flex items-center gap-2 text-success">
+                                        <Check size={14} />
+                                        <span className="text-sm font-medium">
+                                            Valid API key
+                                            {keyInfo.label
+                                                ? ` — ${keyInfo.label}`
+                                                : ""}
+                                        </span>
+                                    </div>
+                                    <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-xs text-muted-foreground pl-6">
+                                        <span>Usage</span>
+                                        <span className="tabular-nums">
+                                            {formatCost(keyInfo.usage)}
+                                            {keyInfo.limit !== null
+                                                ? ` / ${formatCost(keyInfo.limit)}`
+                                                : ""}
+                                        </span>
+                                        {keyInfo.limitRemaining !== null && (
+                                            <>
+                                                <span>Remaining</span>
+                                                <span className="tabular-nums">
+                                                    {formatCost(
+                                                        keyInfo.limitRemaining,
+                                                    )}
+                                                </span>
+                                            </>
+                                        )}
+                                        {keyInfo.rateLimit && (
+                                            <>
+                                                <span>Rate limit</span>
+                                                <span className="tabular-nums">
+                                                    {keyInfo.rateLimit.requests}{" "}
+                                                    /{" "}
+                                                    {keyInfo.rateLimit.interval}
+                                                </span>
+                                            </>
+                                        )}
+                                        {keyInfo.isFreeTier && (
+                                            <>
+                                                <span>Tier</span>
+                                                <span>Free</span>
+                                            </>
+                                        )}
+                                    </div>
                                 </div>
                             )}
 
-                            {validationResult === false && (
+                            {keyInfo === false && (
                                 <div className="flex items-center gap-2 text-error px-3 py-2 bg-error/5 border border-error/20">
                                     <X size={14} />
                                     <span className="text-sm font-medium">

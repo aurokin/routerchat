@@ -25,6 +25,8 @@ import {
     toMessageUsage,
     OpenRouterApiErrorImpl,
     validateApiKey,
+    getKeyInfo,
+    type KeyInfo,
     type OpenRouterMessage,
     type ChatSession as SharedChatSession,
 } from "@shared/core/openrouter";
@@ -35,12 +37,14 @@ export type {
     MessageContent,
     ChatCompletionRequest,
     ChatCompletionResponse,
+    KeyInfo,
 };
 
 export {
     fetchModels,
     buildMessageContent,
     validateApiKey,
+    getKeyInfo,
     sendMessage,
     toMessageUsage,
     extractReasoningText,

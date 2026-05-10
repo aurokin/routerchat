@@ -63,7 +63,7 @@ The Wave 2 feature set carries substantial UI scope (cost badges, tool-call UI, 
 - [ ]   6. Provider routing
 - [ ]   7. PDF / document inputs
 - [ ]   8. Image URL passthrough
-- [ ]   9. `/key` info pane (replace boolean `validateApiKey` with full `getKeyInfo`)
+- [x]   9. `/key` info pane — new `getKeyInfo(apiKey, { signal? })` calls `GET /key`, normalizes the wire envelope into a typed `KeyInfo` (`label` / `usage` / `limit` / `limitRemaining` / `isFreeTier` / `rateLimit?`), and returns `null` on non-OK / network / non-JSON responses. Settings API key card now shows the live metadata on mount (auto-fetch, abortable) and after Validate. Old boolean `validateApiKey` retained for the tutorial liveness path. Race condition between Validate ↔ Clear addressed via a single in-flight `AbortController` ref.
 - [ ]   10. `/credits` balance
 
 ### Models metadata enrichment — DEFERRED
