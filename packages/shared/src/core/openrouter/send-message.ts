@@ -17,10 +17,12 @@ import type {
     ChatCompletionRequest,
     ChatCompletionResponse,
     ChatSession,
+    FunctionTool,
     OpenRouterMessage,
     OpenRouterPlugin,
     ProviderSort,
     ResponseFormat,
+    ToolChoice,
 } from "./types";
 
 function shouldUseXhrStreaming(): boolean {
@@ -206,6 +208,9 @@ export interface SendMessageOptions {
     providerSort?: ProviderSort;
     responseFormat?: ResponseFormat;
     plugins?: OpenRouterPlugin[];
+    functionTools?: FunctionTool[];
+    toolChoice?: ToolChoice;
+    parallelToolCalls?: boolean;
 }
 
 export async function sendMessage(
@@ -226,6 +231,9 @@ export async function sendMessage(
         providerSort: options.providerSort,
         responseFormat: options.responseFormat,
         plugins: options.plugins,
+        functionTools: options.functionTools,
+        toolChoice: options.toolChoice,
+        parallelToolCalls: options.parallelToolCalls,
     });
 
     if (onChunk) {

@@ -6,12 +6,14 @@ import { buildWebSearchTool, modelSupportsSearch } from "./web-search";
 import type {
     ChatCompletionRequest,
     ChatSession,
+    FunctionTool,
     ImageUrlContent,
     OpenRouterMessage,
     OpenRouterPlugin,
     ProviderSort,
     ResponseFormat,
     TextContent,
+    ToolChoice,
 } from "./types";
 
 export function buildMessageContent(
@@ -84,6 +86,15 @@ export interface BuildRequestOptions {
      * pick native-or-default automatically — recommended for general chat.
      */
     plugins?: OpenRouterPlugin[];
+    /**
+     * Function-calling tool definitions. Merged with the implicit web-search
+     * tool when search is enabled. Pass-through to OpenRouter's `tools` field.
+     */
+    functionTools?: FunctionTool[];
+    /** Mirrors OpenRouter's `tool_choice` — controls whether/which tool is invoked. */
+    toolChoice?: ToolChoice;
+    /** Mirrors OpenRouter's `parallel_tool_calls` flag. */
+    parallelToolCalls?: boolean;
 }
 
 export function buildChatCompletionRequest(
@@ -99,6 +110,9 @@ export function buildChatCompletionRequest(
         providerSort,
         responseFormat,
         plugins,
+        functionTools,
+        toolChoice,
+        parallelToolCalls,
     } = options;
 
     const searchEnabled =
@@ -145,6 +159,15 @@ export function buildChatCompletionRequest(
         if (m.reasoning_details) {
             formatted.reasoning_details = m.reasoning_details;
         }
+        if (m.tool_calls) {
+            formatted.tool_calls = m.tool_calls;
+        }
+        if (m.tool_call_id) {
+            formatted.tool_call_id = m.tool_call_id;
+        }
+        if (m.name) {
+            formatted.name = m.name;
+        }
         return formatted;
     });
 
@@ -158,11 +181,27 @@ export function buildChatCompletionRequest(
         requestBody.stream_options = { include_usage: true };
     }
 
+    // User-supplied function tools land before the implicit web-search tool
+    // so that any downstream tool-count cap (e.g. Anthropic via OR) truncates
+    // server-injected tools first rather than the user's.
+    const tools: NonNullable<ChatCompletionRequest["tools"]> = [];
+    if (functionTools && functionTools.length > 0) {
+        tools.push(...functionTools);
+    }
     if (searchEnabled) {
-        const tools = buildWebSearchTool(session.searchLevel);
-        if (tools) {
-            requestBody.tools = tools;
-        }
+        const webTools = buildWebSearchTool(session.searchLevel);
+        if (webTools) tools.push(...webTools);
+    }
+    if (tools.length > 0) {
+        requestBody.tools = tools;
+    }
+
+    if (toolChoice !== undefined) {
+        requestBody.tool_choice = toolChoice;
+    }
+
+    if (parallelToolCalls !== undefined) {
+        requestBody.parallel_tool_calls = parallelToolCalls;
     }
 
     const reasoning = buildReasoningOptions(session.thinking, model);

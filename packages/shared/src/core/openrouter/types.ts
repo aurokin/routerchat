@@ -48,6 +48,15 @@ export interface OpenRouterMessage {
      * continuity.
      */
     reasoning_details?: ReasoningDetailChunk[];
+    /**
+     * Tool calls emitted by the assistant. Replay on follow-up turns so the
+     * provider sees its prior tool invocations.
+     */
+    tool_calls?: ToolCall[];
+    /** Set on `role: "tool"` messages — references the originating tool_call. */
+    tool_call_id?: string;
+    /** Optional name (function name) on `role: "tool"` messages. */
+    name?: string;
 }
 
 export type ReasoningEffort = "high" | "medium" | "low" | "minimal";
@@ -70,7 +79,70 @@ export interface WebSearchTool {
     };
 }
 
-export type OpenRouterTool = WebSearchTool;
+/**
+ * Function-calling tool definition. `parameters` is a JSON Schema describing
+ * the function's argument shape; the model replies with a JSON-encoded
+ * argument string conforming to the schema in `tool_calls[].function.arguments`.
+ *
+ * Docs: https://openrouter.ai/docs/features/tool-calling
+ */
+export interface FunctionDefinition {
+    name: string;
+    description?: string;
+    parameters?: Record<string, unknown>;
+}
+
+export interface FunctionTool {
+    type: "function";
+    function: FunctionDefinition;
+}
+
+export type OpenRouterTool = WebSearchTool | FunctionTool;
+
+/**
+ * Controls when (and whether) the model can call tools.
+ * - `"auto"` (default): model decides
+ * - `"none"`: disabled, even if tools are sent
+ * - `"required"`: must call at least one tool
+ * - object form: must call the named function
+ */
+export type ToolChoice =
+    | "none"
+    | "auto"
+    | "required"
+    | { type: "function"; function: { name: string } };
+
+/**
+ * Assistant-emitted tool invocation. `arguments` is a JSON-encoded **string**
+ * — stream consumers must reassemble it across chunks before parsing. Callers
+ * MUST wrap any `JSON.parse(call.function.arguments)` in `try/catch`: the
+ * model can emit invalid or truncated JSON (notably when `finish_reason` is
+ * `"length"`), and this library does not validate or pre-parse it.
+ */
+export interface ToolCall {
+    id: string;
+    type: "function";
+    function: {
+        name: string;
+        arguments: string;
+    };
+}
+
+/**
+ * Streaming `delta.tool_calls[]` entry. Fields arrive piecemeal: `index` is
+ * always present; `id` / `type` / `function.name` typically arrive in the
+ * first chunk for a given index; `function.arguments` arrives as concatenated
+ * string fragments across many chunks. Consumers merge by `index`.
+ */
+export interface ToolCallDelta {
+    index: number;
+    id?: string;
+    type?: "function";
+    function?: {
+        name?: string;
+        arguments?: string;
+    };
+}
 
 /**
  * OpenRouter plugin spec. Currently only `file-parser` is modelled — used to
@@ -132,6 +204,8 @@ export interface ChatCompletionRequest {
     messages: OpenRouterMessage[];
     reasoning?: ReasoningOptions;
     tools?: OpenRouterTool[];
+    tool_choice?: ToolChoice;
+    parallel_tool_calls?: boolean;
     provider?: ProviderPreferences;
     response_format?: ResponseFormat;
     plugins?: OpenRouterPlugin[];
@@ -168,6 +242,7 @@ export interface ChatCompletionResponse {
             content: string;
             thinking?: string;
             reasoningDetails?: ReasoningDetailChunk[];
+            tool_calls?: ToolCall[];
         };
         finish_reason: string;
     }>;

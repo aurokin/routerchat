@@ -4,6 +4,8 @@ import { extractReasoningText } from "./types";
 import type {
     ChatCompletionResponse,
     ReasoningDetailChunk,
+    ToolCall,
+    ToolCallDelta,
     UsageDetails,
 } from "./types";
 
@@ -37,6 +39,21 @@ export interface StreamParseState {
      * assistant message and replayed back to the provider on follow-up turns.
      */
     reasoningDetails: ReasoningDetailChunk[];
+    /**
+     * Streamed `tool_calls[]` accumulator, keyed by `delta.tool_calls[].index`.
+     * `arguments` is concatenated across chunks; `id` / `type` / `name` are
+     * taken from the first chunk that supplies them. Finalized into a sorted
+     * `ToolCall[]` via {@link finalizeToolCalls}.
+     */
+    toolCallsByIndex: Map<number, AccumulatingToolCall>;
+}
+
+interface AccumulatingToolCall {
+    index: number;
+    id?: string;
+    type?: "function";
+    name?: string;
+    arguments: string;
 }
 
 function makeInitialState(): StreamParseState {
@@ -52,7 +69,62 @@ function makeInitialState(): StreamParseState {
         usage: null,
         finishReason: null,
         reasoningDetails: [],
+        toolCallsByIndex: new Map(),
     };
+}
+
+/**
+ * Streaming `delta.tool_calls[]` arrive piecemeal: each entry's `index` is
+ * stable, `id` / `type` / `function.name` typically appear in the first chunk
+ * for that index, and `function.arguments` is delivered as concatenated string
+ * fragments across many subsequent chunks. Merge by `index`, taking the first
+ * non-empty `id`/`type`/`name` and appending all `arguments` chunks.
+ */
+function mergeToolCallDeltas(
+    target: Map<number, AccumulatingToolCall>,
+    incoming: ToolCallDelta[],
+): void {
+    for (const chunk of incoming) {
+        if (!chunk || typeof chunk !== "object") continue;
+        if (typeof chunk.index !== "number") continue;
+        let entry = target.get(chunk.index);
+        if (!entry) {
+            entry = { index: chunk.index, arguments: "" };
+            target.set(chunk.index, entry);
+        }
+        if (chunk.id && !entry.id) entry.id = chunk.id;
+        if (chunk.type && !entry.type) entry.type = chunk.type;
+        if (chunk.function?.name && !entry.name) {
+            entry.name = chunk.function.name;
+        }
+        if (typeof chunk.function?.arguments === "string") {
+            entry.arguments += chunk.function.arguments;
+        }
+    }
+}
+
+/**
+ * Convert the indexed accumulator into the final ordered `ToolCall[]`. Drops
+ * entries with no `id` (providers must supply one per call); defaults missing
+ * `type` to "function" and `name` to empty string for robustness.
+ */
+export function finalizeToolCalls(
+    map: Map<number, AccumulatingToolCall>,
+): ToolCall[] {
+    const entries = Array.from(map.values()).sort((a, b) => a.index - b.index);
+    const result: ToolCall[] = [];
+    for (const entry of entries) {
+        if (!entry.id) continue;
+        result.push({
+            id: entry.id,
+            type: entry.type ?? "function",
+            function: {
+                name: entry.name ?? "",
+                arguments: entry.arguments,
+            },
+        });
+    }
+    return result;
 }
 
 /**
@@ -155,6 +227,12 @@ function applyStreamDelta(
             // `delta.reasoning_details[]`.
             thinkingDelta += delta.thinking;
             onChunk("", delta.thinking);
+        }
+        if (Array.isArray(delta?.tool_calls)) {
+            mergeToolCallDeltas(
+                state.toolCallsByIndex,
+                delta.tool_calls as ToolCallDelta[],
+            );
         }
         if (choice?.finish_reason && choice.finish_reason !== "error") {
             streamComplete = true;
@@ -303,6 +381,7 @@ export function buildResponseFromStreamState(
     state: StreamParseState,
     fallbackModel: string,
 ): ChatCompletionResponse {
+    const toolCalls = finalizeToolCalls(state.toolCallsByIndex);
     return {
         id: state.id ?? "",
         object: "chat.completion",
@@ -319,6 +398,7 @@ export function buildResponseFromStreamState(
                         state.reasoningDetails.length > 0
                             ? state.reasoningDetails
                             : undefined,
+                    tool_calls: toolCalls.length > 0 ? toolCalls : undefined,
                 },
                 finish_reason:
                     state.finishReason ??
