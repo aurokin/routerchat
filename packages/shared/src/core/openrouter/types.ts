@@ -68,6 +68,24 @@ export interface ProviderPreferences {
     sort?: ProviderSort;
 }
 
+/**
+ * Structured-output request format. `json_object` asks the model to return
+ * any valid JSON; `json_schema` constrains the response to a supplied schema
+ * (provider-enforced where supported, prompt-only fallback elsewhere).
+ *
+ * Docs: https://openrouter.ai/docs/features/structured-outputs
+ */
+export type ResponseFormat =
+    | { type: "json_object" }
+    | {
+          type: "json_schema";
+          json_schema: {
+              name: string;
+              strict?: boolean;
+              schema: Record<string, unknown>;
+          };
+      };
+
 export interface StreamOptions {
     include_usage?: boolean;
 }
@@ -78,6 +96,7 @@ export interface ChatCompletionRequest {
     reasoning?: ReasoningOptions;
     tools?: OpenRouterTool[];
     provider?: ProviderPreferences;
+    response_format?: ResponseFormat;
     stream?: boolean;
     stream_options?: StreamOptions;
 }

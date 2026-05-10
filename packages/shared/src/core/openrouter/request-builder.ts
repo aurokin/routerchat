@@ -10,6 +10,7 @@ import type {
     MessageContent,
     OpenRouterMessage,
     ProviderSort,
+    ResponseFormat,
     TextContent,
 } from "./types";
 
@@ -70,6 +71,13 @@ export interface BuildRequestOptions {
      * load-balancing. Omit (or pass `undefined`) to leave the field off.
      */
     providerSort?: ProviderSort;
+    /**
+     * Constrains the model's reply to JSON (free-form or schema-validated).
+     * Pass-through to OpenRouter's `response_format` field. UI surface for
+     * configuring schemas is deferred — wire support lands first so callers
+     * can opt in programmatically.
+     */
+    responseFormat?: ResponseFormat;
 }
 
 export function buildChatCompletionRequest(
@@ -83,6 +91,7 @@ export function buildChatCompletionRequest(
         cacheControl,
         systemPrefix,
         providerSort,
+        responseFormat,
     } = options;
 
     const searchEnabled =
@@ -156,6 +165,10 @@ export function buildChatCompletionRequest(
 
     if (providerSort) {
         requestBody.provider = { sort: providerSort };
+    }
+
+    if (responseFormat) {
+        requestBody.response_format = responseFormat;
     }
 
     return requestBody;

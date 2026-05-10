@@ -20,6 +20,7 @@ export {
     type ReasoningDetailChunk,
     type ReasoningEffort,
     type ReasoningOptions,
+    type ResponseFormat,
     type StreamOptions,
     type TextContent,
     type UsageDetails,
