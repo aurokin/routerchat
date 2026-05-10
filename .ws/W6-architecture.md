@@ -42,18 +42,14 @@ Convex provider console noise (sweep #3 finding): when `NEXT_PUBLIC_CONVEX_URL` 
     - `apps/web/src/contexts/SyncContext.tsx:195` already lives inside `SyncProviderWithAuth`, which only mounts when Convex is available — left as-is to keep using the upstream `useConvexAuth()` directly.
 - [-] Browser devtools spot-check + dedicated Vitest component test for the local-only render path — deferred. Existing test suite (747 / 747) covers downstream consumers; the no-fallback render is structurally guaranteed by `getClient()` returning `null` when `isConvexConfigured()` is `false`.
 
-### Settings page split (Wave 3) — DEFERRED
+### Settings page split (Wave 3) — landed (tight version)
 
-- [ ] `apps/web/src/app/settings/page.tsx` (1116 LOC) → thin orchestrator + per-section components in `app/settings/_components/`:
-    - `SettingsApiKey.tsx`
-    - `SettingsModels.tsx` (default model, favorites, recommended)
-    - `SettingsSync.tsx` (cloud sync, clone-to-local)
-    - `SettingsSkills.tsx`
-    - `SettingsTheme.tsx`
-    - `SettingsLocalData.tsx` (export, clear, storage usage)
-    - `SettingsAccount.tsx` (sign-in/out, key info pane post-W4)
-- [ ] Each component is < 300 LOC.
-- [ ] Tabs / accordion stays in the orchestrator.
+Decided against the full 7-file split planned originally — most candidate sections (Theme 39, Prompt Cache 32, Keybindings 57, About 63, API Key 137) were small and stateless enough that the module boundary added overhead without unlocking reuse, tests, or readability. Pulled out only the two heavy sections that owned non-trivial encapsulated state:
+
+- [x] `apps/web/src/app/settings/page.tsx`: 1152 → 577 LOC. Orchestrator now keeps API key, theme, prompt cache, hash-scroll effect, comma-key shortcut to `/chat`, and the `?highlight=` flash timer. All other sections render inline.
+- [x] `apps/web/src/app/settings/_components/SettingsSkills.tsx` (227 LOC) — owns skill form state (5 useState slots), edit/save/delete handlers, and the section JSX. Calls `useSettings()` directly.
+- [x] `apps/web/src/app/settings/_components/SettingsLocalData.tsx` (314 LOC) — owns storage usage state, two clearing flags, `formatBytes`, and the local + cloud quota JSX. Pulls `useSync()` consumers (`cloudQuotaStatus`, `cloudStorageUsage`, `clearCloudImages`, `isConvexAvailable`, `localQuotaStatus`, `refreshQuotaStatus`) with it.
+- [-] API Key, Prompt Cache, Theme, Keybindings, About — stay inline. Easy to scan via comment dividers; no module-boundary win.
 
 ### ChatWindow split (Wave 3) — landed
 
