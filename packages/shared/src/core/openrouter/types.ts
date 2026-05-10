@@ -20,7 +20,23 @@ export type ImageUrlContent = {
     };
 };
 
-export type MessageContent = string | Array<TextContent | ImageUrlContent>;
+/**
+ * File attachment content block (e.g., PDFs). `file_data` accepts either a
+ * `data:application/pdf;base64,...` URL or a public `https://` URL.
+ *
+ * Docs: https://openrouter.ai/docs/features/multimodal/pdfs
+ */
+export type FileContent = {
+    type: "file";
+    file: {
+        filename: string;
+        file_data: string;
+    };
+};
+
+export type MessageContent =
+    | string
+    | Array<TextContent | ImageUrlContent | FileContent>;
 
 export interface OpenRouterMessage {
     role: string;
@@ -55,6 +71,27 @@ export interface WebSearchTool {
 }
 
 export type OpenRouterTool = WebSearchTool;
+
+/**
+ * OpenRouter plugin spec. Currently only `file-parser` is modelled — used to
+ * pin a specific PDF parsing engine. When omitted, OpenRouter picks
+ * native-or-default automatically (recommended for general chat).
+ *
+ * Engines:
+ * - `mistral-ocr` — best for scanned/image-heavy PDFs, $2 per 1k pages
+ * - `pdf-text` / `cloudflare-ai` — markdown extraction, free
+ * - `native` — forward PDF directly to models with native file input
+ *
+ * Docs: https://openrouter.ai/docs/features/multimodal/pdfs#parser-engines
+ */
+export type FileParserPlugin = {
+    id: "file-parser";
+    pdf?: {
+        engine: "mistral-ocr" | "pdf-text" | "cloudflare-ai" | "native";
+    };
+};
+
+export type OpenRouterPlugin = FileParserPlugin;
 
 /**
  * Provider-routing knob (rough proxy for cheapest / fastest / lowest-latency).
@@ -97,6 +134,7 @@ export interface ChatCompletionRequest {
     tools?: OpenRouterTool[];
     provider?: ProviderPreferences;
     response_format?: ResponseFormat;
+    plugins?: OpenRouterPlugin[];
     stream?: boolean;
     stream_options?: StreamOptions;
 }

@@ -18,6 +18,7 @@ import type {
     ChatCompletionResponse,
     ChatSession,
     OpenRouterMessage,
+    OpenRouterPlugin,
     ProviderSort,
     ResponseFormat,
 } from "./types";
@@ -204,6 +205,7 @@ export interface SendMessageOptions {
     systemPrefix?: string;
     providerSort?: ProviderSort;
     responseFormat?: ResponseFormat;
+    plugins?: OpenRouterPlugin[];
 }
 
 export async function sendMessage(
@@ -223,6 +225,7 @@ export async function sendMessage(
         systemPrefix: options.systemPrefix,
         providerSort: options.providerSort,
         responseFormat: options.responseFormat,
+        plugins: options.plugins,
     });
 
     if (onChunk) {

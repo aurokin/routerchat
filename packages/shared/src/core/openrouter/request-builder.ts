@@ -7,8 +7,8 @@ import type {
     ChatCompletionRequest,
     ChatSession,
     ImageUrlContent,
-    MessageContent,
     OpenRouterMessage,
+    OpenRouterPlugin,
     ProviderSort,
     ResponseFormat,
     TextContent,
@@ -17,7 +17,7 @@ import type {
 export function buildMessageContent(
     text: string,
     attachments?: Attachment[],
-): MessageContent {
+): string | Array<TextContent | ImageUrlContent> {
     if (!attachments || attachments.length === 0) {
         return text;
     }
@@ -78,6 +78,12 @@ export interface BuildRequestOptions {
      * can opt in programmatically.
      */
     responseFormat?: ResponseFormat;
+    /**
+     * Top-level plugins (e.g. `file-parser` for PDF engine selection).
+     * Pass-through to OpenRouter's `plugins` field. Omit to let OpenRouter
+     * pick native-or-default automatically — recommended for general chat.
+     */
+    plugins?: OpenRouterPlugin[];
 }
 
 export function buildChatCompletionRequest(
@@ -92,6 +98,7 @@ export function buildChatCompletionRequest(
         systemPrefix,
         providerSort,
         responseFormat,
+        plugins,
     } = options;
 
     const searchEnabled =
@@ -169,6 +176,10 @@ export function buildChatCompletionRequest(
 
     if (responseFormat) {
         requestBody.response_format = responseFormat;
+    }
+
+    if (plugins && plugins.length > 0) {
+        requestBody.plugins = plugins;
     }
 
     return requestBody;
