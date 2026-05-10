@@ -12,6 +12,7 @@ import type {
     PendingAttachment as SharedPendingAttachment,
     ThinkingLevel as SharedThinkingLevel,
     SearchLevel as SharedSearchLevel,
+    ProviderSortPreference as SharedProviderSortPreference,
 } from "@shared/core/types";
 
 export type { Skill };
@@ -24,6 +25,8 @@ export type { SharedSkillSettingsUpdate as SkillSettingsUpdate };
 export type ThinkingLevel = SharedThinkingLevel;
 
 export type SearchLevel = SharedSearchLevel;
+
+export type ProviderSortPreference = SharedProviderSortPreference;
 
 export interface Message extends SharedMessage {
     contextContent: string;

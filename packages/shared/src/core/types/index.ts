@@ -1,5 +1,7 @@
 import type { Skill } from "../skills";
-import type { ReasoningDetailChunk } from "../openrouter/types";
+import type { ProviderSort, ReasoningDetailChunk } from "../openrouter/types";
+
+export type ProviderSortPreference = ProviderSort | "default";
 
 export type ThinkingLevel =
     | "xhigh"
@@ -77,6 +79,12 @@ export interface UserSettings {
      * Default off — opt-in only.
      */
     promptCacheEnabled: boolean;
+    /**
+     * Provider-routing sort preference. `"default"` lets OpenRouter
+     * load-balance; the other values force ordering by the named metric
+     * (cheapest / highest-throughput / lowest-latency).
+     */
+    providerSort: ProviderSortPreference;
 }
 
 export interface Attachment {

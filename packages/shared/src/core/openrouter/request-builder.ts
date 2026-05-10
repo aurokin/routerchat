@@ -9,6 +9,7 @@ import type {
     ImageUrlContent,
     MessageContent,
     OpenRouterMessage,
+    ProviderSort,
     TextContent,
 } from "./types";
 
@@ -63,13 +64,26 @@ export interface BuildRequestOptions {
      * messages so the cache prefix stays stable across requests.
      */
     systemPrefix?: string;
+    /**
+     * Provider-routing sort preference. When set, emits a `provider.sort`
+     * field so OpenRouter orders endpoints by the named metric instead of
+     * load-balancing. Omit (or pass `undefined`) to leave the field off.
+     */
+    providerSort?: ProviderSort;
 }
 
 export function buildChatCompletionRequest(
     options: BuildRequestOptions,
 ): ChatCompletionRequest {
-    const { messages, session, model, stream, cacheControl, systemPrefix } =
-        options;
+    const {
+        messages,
+        session,
+        model,
+        stream,
+        cacheControl,
+        systemPrefix,
+        providerSort,
+    } = options;
 
     const searchEnabled =
         session.searchLevel !== "none" && modelSupportsSearch(model);
@@ -138,6 +152,10 @@ export function buildChatCompletionRequest(
     const reasoning = buildReasoningOptions(session.thinking, model);
     if (reasoning) {
         requestBody.reasoning = reasoning;
+    }
+
+    if (providerSort) {
+        requestBody.provider = { sort: providerSort };
     }
 
     return requestBody;

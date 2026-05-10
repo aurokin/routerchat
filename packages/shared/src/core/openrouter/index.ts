@@ -15,6 +15,8 @@ export {
     type OpenRouterApiModel,
     type OpenRouterMessage,
     type OpenRouterTool,
+    type ProviderPreferences,
+    type ProviderSort,
     type ReasoningDetailChunk,
     type ReasoningEffort,
     type ReasoningOptions,

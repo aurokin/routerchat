@@ -33,6 +33,7 @@ import {
     Keyboard,
     ChevronDown,
     Zap,
+    Route,
 } from "lucide-react";
 import { cn, externalLinkProps } from "@/lib/utils";
 const CloudSyncSettings = dynamic(
@@ -71,6 +72,8 @@ function SettingsPageContent() {
         setTheme,
         promptCacheEnabled,
         setPromptCacheEnabled,
+        providerSort,
+        setProviderSort,
     } = useSettings();
     const [newApiKey, setNewApiKey] = useState(apiKey || "");
     const lastApiKeyRef = useRef<string | null>(apiKey ?? null);
@@ -505,6 +508,76 @@ function SettingsPageContent() {
                                 aria-label="Enable prompt caching"
                             />
                         </label>
+                    </section>
+
+                    {/* Provider routing */}
+                    <section className="card-deco mb-6">
+                        <div className="flex items-center gap-3 mb-4">
+                            <div className="w-8 h-8 bg-accent/10 flex items-center justify-center">
+                                <Route size={16} className="text-accent" />
+                            </div>
+                            <h2 className="text-lg font-medium">
+                                Provider routing
+                            </h2>
+                        </div>
+                        <p className="text-sm text-muted-foreground mb-4">
+                            When a model is served by multiple providers,
+                            OpenRouter normally load-balances. Pin a metric to
+                            force ordering by that metric instead.
+                        </p>
+                        <div
+                            className="grid grid-cols-2 sm:grid-cols-4 gap-3"
+                            role="radiogroup"
+                            aria-label="Provider routing sort"
+                        >
+                            {(
+                                [
+                                    {
+                                        value: "default",
+                                        label: "Default",
+                                        sub: "Load-balanced",
+                                    },
+                                    {
+                                        value: "price",
+                                        label: "Cheapest",
+                                        sub: "Lowest cost",
+                                    },
+                                    {
+                                        value: "throughput",
+                                        label: "Fastest",
+                                        sub: "Highest tok/s",
+                                    },
+                                    {
+                                        value: "latency",
+                                        label: "Lowest latency",
+                                        sub: "Quickest first byte",
+                                    },
+                                ] as const
+                            ).map((option) => (
+                                <button
+                                    key={option.value}
+                                    type="button"
+                                    role="radio"
+                                    onClick={() =>
+                                        setProviderSort(option.value)
+                                    }
+                                    className={cn(
+                                        "p-3 border flex flex-col items-center gap-1 transition-all duration-200 cursor-pointer text-center",
+                                        providerSort === option.value
+                                            ? "border-primary bg-primary/10 shadow-deco"
+                                            : "border-border hover:border-primary/40 bg-background-elevated",
+                                    )}
+                                    aria-checked={providerSort === option.value}
+                                >
+                                    <span className="text-sm font-medium">
+                                        {option.label}
+                                    </span>
+                                    <span className="text-[11px] text-muted-foreground">
+                                        {option.sub}
+                                    </span>
+                                </button>
+                            ))}
+                        </div>
                     </section>
 
                     {/* Theme & Keybindings */}

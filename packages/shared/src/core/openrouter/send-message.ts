@@ -18,6 +18,7 @@ import type {
     ChatCompletionResponse,
     ChatSession,
     OpenRouterMessage,
+    ProviderSort,
 } from "./types";
 
 function shouldUseXhrStreaming(): boolean {
@@ -200,6 +201,7 @@ async function sendMessageWithXhr(
 export interface SendMessageOptions {
     cacheControl?: boolean;
     systemPrefix?: string;
+    providerSort?: ProviderSort;
 }
 
 export async function sendMessage(
@@ -217,6 +219,7 @@ export async function sendMessage(
         stream: !!onChunk,
         cacheControl: options.cacheControl,
         systemPrefix: options.systemPrefix,
+        providerSort: options.providerSort,
     });
 
     if (onChunk) {

@@ -56,6 +56,18 @@ export interface WebSearchTool {
 
 export type OpenRouterTool = WebSearchTool;
 
+/**
+ * Provider-routing knob (rough proxy for cheapest / fastest / lowest-latency).
+ * When set, OpenRouter orders endpoints by the metric instead of load-balancing.
+ *
+ * Docs: https://openrouter.ai/docs/features/provider-routing#sorting
+ */
+export type ProviderSort = "price" | "throughput" | "latency";
+
+export interface ProviderPreferences {
+    sort?: ProviderSort;
+}
+
 export interface StreamOptions {
     include_usage?: boolean;
 }
@@ -65,6 +77,7 @@ export interface ChatCompletionRequest {
     messages: OpenRouterMessage[];
     reasoning?: ReasoningOptions;
     tools?: OpenRouterTool[];
+    provider?: ProviderPreferences;
     stream?: boolean;
     stream_options?: StreamOptions;
 }

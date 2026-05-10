@@ -16,6 +16,7 @@ import {
     type ImageMimeType,
     type Message,
     type PendingAttachment,
+    type ProviderSortPreference,
     type SearchLevel,
     type ThinkingLevel,
 } from "@/lib/types";
@@ -50,6 +51,7 @@ export interface UseSendMessageParams {
     models: OpenRouterModel[];
     storageAdapter: StorageAdapter;
     promptCacheEnabled: boolean;
+    providerSort: ProviderSortPreference;
     /** Returns the freshest skill snapshot, including keybinding-driven changes. */
     getLastSkillChange: () => { skill: Skill | null; mode: "auto" | "manual" };
     addMessage: (msg: NewMessageInput) => Promise<Message>;
@@ -119,6 +121,7 @@ export function useSendMessage(
         models,
         storageAdapter,
         promptCacheEnabled,
+        providerSort,
         getLastSkillChange,
         addMessage,
         updateMessage,
@@ -393,6 +396,10 @@ export function useSendMessage(
                     {
                         cacheControl: promptCacheEnabled,
                         systemPrefix: cachedSystemPrefix,
+                        providerSort:
+                            providerSort === "default"
+                                ? undefined
+                                : providerSort,
                     },
                 );
 
@@ -463,6 +470,7 @@ export function useSendMessage(
             messages,
             models,
             promptCacheEnabled,
+            providerSort,
             queueStreamingMessageUpdate,
             selectedSkill,
             setDefaultModel,

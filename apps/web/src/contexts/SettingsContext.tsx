@@ -15,6 +15,7 @@ import type {
     ThinkingLevel,
     SearchLevel,
     Skill,
+    ProviderSortPreference,
 } from "@/lib/types";
 import { APP_DEFAULT_MODEL } from "@shared/core/models";
 import { v4 as uuid } from "uuid";
@@ -29,6 +30,7 @@ interface SettingsContextType extends UserSettings {
     setDefaultThinking: (value: ThinkingLevel) => void;
     setDefaultSearchLevel: (level: SearchLevel) => void;
     setPromptCacheEnabled: (enabled: boolean) => void;
+    setProviderSort: (value: ProviderSortPreference) => void;
     setTheme: (theme: UserSettings["theme"]) => void;
     toggleFavoriteModel: (modelId: string) => void;
     models: OpenRouterModel[];
@@ -56,6 +58,7 @@ const defaultSettings: UserSettings = {
     theme: "system",
     favoriteModels: [],
     promptCacheEnabled: false,
+    providerSort: "default",
 };
 
 const SettingsContext = createContext<SettingsContextType | null>(null);
@@ -145,6 +148,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
             theme: storage.getTheme(),
             favoriteModels: storage.getFavoriteModels(),
             promptCacheEnabled: storage.getPromptCacheEnabled(),
+            providerSort: storage.getProviderSort(),
         }));
         setMounted(true);
     }, []);
@@ -233,6 +237,11 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
     const setPromptCacheEnabled = (enabled: boolean) => {
         storage.setPromptCacheEnabled(enabled);
         setSettings((prev) => ({ ...prev, promptCacheEnabled: enabled }));
+    };
+
+    const setProviderSort = (value: ProviderSortPreference) => {
+        storage.setProviderSort(value);
+        setSettings((prev) => ({ ...prev, providerSort: value }));
     };
 
     const setTheme = (theme: UserSettings["theme"]) => {
@@ -385,6 +394,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
                 setDefaultThinking,
                 setDefaultSearchLevel,
                 setPromptCacheEnabled,
+                setProviderSort,
                 setTheme,
                 toggleFavoriteModel,
                 models,

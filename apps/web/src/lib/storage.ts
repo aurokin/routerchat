@@ -1,4 +1,4 @@
-import type { SearchLevel, Skill } from "./types";
+import type { ProviderSortPreference, SearchLevel, Skill } from "./types";
 import type { SyncState, SyncMetadata } from "./sync/types";
 import { DEFAULT_SYNC_METADATA } from "./sync/types";
 
@@ -9,6 +9,7 @@ const STORAGE_KEYS = {
     DEFAULT_THINKING: "routerchat-default-thinking",
     DEFAULT_SEARCH: "routerchat-default-search",
     PROMPT_CACHE_ENABLED: "routerchat-prompt-cache-enabled",
+    PROVIDER_SORT: "routerchat-provider-sort",
     FAVORITE_MODELS: "routerchat-favorite-models",
     SKILLS: "routerchat-skills",
     DEFAULT_SKILL: "routerchat-default-skill",
@@ -217,6 +218,26 @@ export function setPromptCacheEnabled(enabled: boolean): void {
         STORAGE_KEYS.PROMPT_CACHE_ENABLED,
         enabled ? "true" : "false",
     );
+}
+
+const PROVIDER_SORT_VALUES = [
+    "default",
+    "price",
+    "throughput",
+    "latency",
+] as const satisfies readonly ProviderSortPreference[];
+
+export function getProviderSort(): ProviderSortPreference {
+    if (typeof window === "undefined") return "default";
+    const stored = localStorage.getItem(STORAGE_KEYS.PROVIDER_SORT) ?? "";
+    return (PROVIDER_SORT_VALUES as readonly string[]).includes(stored)
+        ? (stored as ProviderSortPreference)
+        : "default";
+}
+
+export function setProviderSort(value: ProviderSortPreference): void {
+    if (typeof window === "undefined") return;
+    localStorage.setItem(STORAGE_KEYS.PROVIDER_SORT, value);
 }
 
 export function getSkills(): Skill[] {
