@@ -59,7 +59,7 @@ The Wave 2 feature set carries substantial UI scope (cost badges, tool-call UI, 
 - [x]   2. Prompt caching — opt-in `promptCacheEnabled` setting (default off). When on, the request builder emits a single leading system message containing the skill prompt (and search guidance, when search is on) inside a typed-array content block carrying `cache_control: {type: "ephemeral"}`. The send hook strips the inlined skill from the outgoing user content so the cache prefix stays stable across turns; storage shape is unchanged. Cached-token deltas already render in the per-chat usage summary.
 - [x]   3. Generation cost reporting — `MessageUsage` persisted on assistant messages; `ChatUsageSummary` aggregates and renders per-chat tokens, optional cost, and cached tokens. `toMessageUsage()` adapts the wire-format `usage` payload to the storage shape. `getGeneration` deferred — inline `usage` from `stream_options.include_usage` already covers the per-chat aggregate use case.
 - [ ]   4. Structured outputs
-- [ ]   5. Reasoning fidelity (persist + replay `reasoning_details[]`)
+- [x]   5. Reasoning fidelity — full `reasoning_details[]` arrays are now merged across streamed chunks (by `id`, appending text and finalizing format/signature), persisted on assistant messages, and replayed on every follow-up turn. `OpenRouterMessage.reasoning_details` is the wire-format field; the request builder passes it through on assistant messages. Encrypted Anthropic chunks round-trip unchanged so cross-turn reasoning continuity survives.
 - [ ]   6. Provider routing
 - [ ]   7. PDF / document inputs
 - [ ]   8. Image URL passthrough

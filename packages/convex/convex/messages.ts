@@ -26,6 +26,18 @@ const messageUsageValidator = v.object({
     cachedTokens: v.optional(v.number()),
 });
 
+const reasoningDetailValidator = v.object({
+    id: v.string(),
+    type: v.union(
+        v.literal("reasoning.text"),
+        v.literal("reasoning.summary"),
+        v.literal("reasoning.encrypted"),
+    ),
+    format: v.optional(v.string()),
+    text: v.optional(v.string()),
+    signature: v.optional(v.string()),
+});
+
 const messageDocValidator = v.object({
     _id: v.id("messages"),
     _creationTime: v.number(),
@@ -46,6 +58,7 @@ const messageDocValidator = v.object({
     searchLevel: v.optional(v.string()),
     attachmentIds: v.optional(v.array(v.string())),
     usage: v.optional(messageUsageValidator),
+    reasoningDetails: v.optional(v.array(reasoningDetailValidator)),
     createdAt: v.number(),
 });
 
@@ -171,6 +184,7 @@ export const create = mutation({
         searchLevel: v.optional(v.string()),
         attachmentIds: v.optional(v.array(v.string())),
         usage: v.optional(messageUsageValidator),
+        reasoningDetails: v.optional(v.array(reasoningDetailValidator)),
         createdAt: v.optional(v.number()),
     },
     returns: v.id("messages"),
@@ -222,6 +236,7 @@ export const create = mutation({
             searchLevel: args.searchLevel,
             attachmentIds: args.attachmentIds,
             usage: args.usage,
+            reasoningDetails: args.reasoningDetails,
             createdAt: args.createdAt ?? now,
         });
 
@@ -247,6 +262,7 @@ export const update = mutation({
         thinking: v.optional(v.string()),
         attachmentIds: v.optional(v.array(v.string())),
         usage: v.optional(messageUsageValidator),
+        reasoningDetails: v.optional(v.array(reasoningDetailValidator)),
     },
     returns: v.null(),
     handler: async (ctx, args) => {

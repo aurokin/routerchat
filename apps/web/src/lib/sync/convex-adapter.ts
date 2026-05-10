@@ -340,6 +340,7 @@ function createServices(client: ConvexClient): AdapterServices {
                     searchLevel: message.searchLevel,
                     attachmentIds: message.attachmentIds,
                     usage: message.usage,
+                    reasoningDetails: message.reasoningDetails,
                     createdAt: message.createdAt,
                 }),
             getByLocalId: async ({ userId, localId }) =>
@@ -373,6 +374,7 @@ function createServices(client: ConvexClient): AdapterServices {
                     thinking: message.thinking,
                     attachmentIds: message.attachmentIds,
                     usage: message.usage,
+                    reasoningDetails: message.reasoningDetails,
                 });
             },
             remove: async ({ id }) => {
@@ -994,6 +996,7 @@ export class ConvexStorageAdapter implements StorageAdapter {
             searchLevel: msg.searchLevel as Message["searchLevel"],
             attachmentIds: msg.attachmentIds,
             usage: msg.usage,
+            reasoningDetails: msg.reasoningDetails,
             createdAt: msg.createdAt,
         };
     }

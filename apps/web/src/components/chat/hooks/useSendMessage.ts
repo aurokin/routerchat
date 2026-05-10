@@ -20,6 +20,7 @@ import {
     type ThinkingLevel,
 } from "@/lib/types";
 import type { OpenRouterModel } from "@shared/core/models";
+import type { OpenRouterMessage } from "@shared/core/openrouter";
 import type { Skill } from "@shared/core/skills";
 import { trimTrailingEmptyLines } from "@shared/core/text";
 import { generateUUID } from "@/lib/utils";
@@ -282,10 +283,7 @@ export function useSendMessage(
                     await updateChat(updatedChat);
                 }
 
-                const currentMessages: Array<{
-                    role: string;
-                    content: MessageContent;
-                }> = [];
+                const currentMessages: OpenRouterMessage[] = [];
 
                 for (const m of messagesSnapshot) {
                     // When caching is on we send the skill prompt as a cached
@@ -310,10 +308,20 @@ export function useSendMessage(
                         }
                     }
 
-                    currentMessages.push({
+                    const outgoing: OpenRouterMessage = {
                         role: m.role,
                         content: messageContent,
-                    });
+                    };
+                    // Replay reasoning back so providers (e.g. Anthropic) can
+                    // resume their reasoning chain on the next turn.
+                    if (
+                        m.role === "assistant" &&
+                        m.reasoningDetails &&
+                        m.reasoningDetails.length > 0
+                    ) {
+                        outgoing.reasoning_details = m.reasoningDetails;
+                    }
+                    currentMessages.push(outgoing);
                 }
 
                 const newUserAttachments: Attachment[] | undefined =
@@ -390,11 +398,14 @@ export function useSendMessage(
                     trimTrailingEmptyLines(fullResponse) ?? "";
                 const trimmedThinking = trimTrailingEmptyLines(fullThinking);
                 const usage = toMessageUsage(response.usage) ?? undefined;
+                const reasoningDetails =
+                    response.choices[0]?.message.reasoningDetails;
                 await updateMessage(assistantMessage.id, {
                     content: trimmedResponse,
                     contextContent: trimmedResponse,
                     thinking: trimmedThinking || undefined,
                     usage,
+                    reasoningDetails,
                 });
             } catch (err) {
                 if (assistantMessageId && (fullResponse || fullThinking)) {

@@ -1,4 +1,5 @@
 import type { Skill } from "../skills";
+import type { ReasoningDetailChunk } from "../openrouter/types";
 
 export type ThinkingLevel =
     | "xhigh"
@@ -34,6 +35,15 @@ export interface Message {
     content: string;
     contextContent: string;
     thinking?: string;
+    /**
+     * Structured reasoning blocks from the provider. Persisted so we can
+     * replay them on follow-up requests — Anthropic in particular requires
+     * the `signature` on `reasoning.encrypted` chunks to be sent back
+     * unchanged to maintain reasoning continuity across turns.
+     *
+     * Wire shape: https://openrouter.ai/docs/use-cases/reasoning-tokens
+     */
+    reasoningDetails?: ReasoningDetailChunk[];
     skill?: Skill | null;
     modelId?: string;
     thinkingLevel?: ThinkingLevel;

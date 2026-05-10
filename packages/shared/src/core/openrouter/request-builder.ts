@@ -104,10 +104,16 @@ export function buildChatCompletionRequest(
         requestMessages = messages;
     }
 
-    const formattedMessages = requestMessages.map((m) => ({
-        role: m.role,
-        content: m.content,
-    }));
+    const formattedMessages: OpenRouterMessage[] = requestMessages.map((m) => {
+        const formatted: OpenRouterMessage = {
+            role: m.role,
+            content: m.content,
+        };
+        if (m.reasoning_details) {
+            formatted.reasoning_details = m.reasoning_details;
+        }
+        return formatted;
+    });
 
     const requestBody: ChatCompletionRequest = {
         model: session.modelId,

@@ -63,6 +63,7 @@ interface ChatContextType {
                 | "thinking"
                 | "attachmentIds"
                 | "usage"
+                | "reasoningDetails"
             >
         >,
     ) => Promise<void>;
@@ -384,6 +385,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
                     | "thinking"
                     | "attachmentIds"
                     | "usage"
+                    | "reasoningDetails"
                 >
             >,
         ) => {

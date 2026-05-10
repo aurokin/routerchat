@@ -25,6 +25,13 @@ export type MessageContent = string | Array<TextContent | ImageUrlContent>;
 export interface OpenRouterMessage {
     role: string;
     content: MessageContent;
+    /**
+     * When present on an assistant message, the provider treats these as its
+     * prior reasoning blocks. Pass them back unmodified — Anthropic relies on
+     * the `signature` on `reasoning.encrypted` chunks for cross-turn
+     * continuity.
+     */
+    reasoning_details?: ReasoningDetailChunk[];
 }
 
 export type ReasoningEffort = "high" | "medium" | "low" | "minimal";
@@ -90,6 +97,7 @@ export interface ChatCompletionResponse {
             role: string;
             content: string;
             thinking?: string;
+            reasoningDetails?: ReasoningDetailChunk[];
         };
         finish_reason: string;
     }>;

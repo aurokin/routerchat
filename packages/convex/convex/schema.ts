@@ -25,6 +25,20 @@ const messageUsageValidator = v.object({
     cachedTokens: v.optional(v.number()),
 });
 
+// Mirrors `ReasoningDetailChunk` in packages/shared. Re-check upstream when
+// expanding: https://openrouter.ai/docs/use-cases/reasoning-tokens
+const reasoningDetailValidator = v.object({
+    id: v.string(),
+    type: v.union(
+        v.literal("reasoning.text"),
+        v.literal("reasoning.summary"),
+        v.literal("reasoning.encrypted"),
+    ),
+    format: v.optional(v.string()),
+    text: v.optional(v.string()),
+    signature: v.optional(v.string()),
+});
+
 export default defineSchema({
     ...authTables,
     users: defineTable({
@@ -81,6 +95,7 @@ export default defineSchema({
         searchLevel: v.optional(v.string()),
         attachmentIds: v.optional(v.array(v.string())),
         usage: v.optional(messageUsageValidator),
+        reasoningDetails: v.optional(v.array(reasoningDetailValidator)),
         createdAt: v.number(),
     })
         .index("by_chat_created", ["chatId", "createdAt"])

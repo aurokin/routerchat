@@ -32,6 +32,11 @@ export interface StreamParseState {
     usage: UsageDetails | null;
     /** Last seen finish_reason from a non-error chunk. */
     finishReason: string | null;
+    /**
+     * Streamed `reasoning_details[]` chunks, merged by `id`. Persisted on the
+     * assistant message and replayed back to the provider on follow-up turns.
+     */
+    reasoningDetails: ReasoningDetailChunk[];
 }
 
 function makeInitialState(): StreamParseState {
@@ -46,7 +51,38 @@ function makeInitialState(): StreamParseState {
         created: null,
         usage: null,
         finishReason: null,
+        reasoningDetails: [],
     };
+}
+
+/**
+ * Streaming providers emit `reasoning_details[]` across many SSE chunks; later
+ * chunks for the same `id` append text and may finalize `format` / `signature`.
+ * Merge in place so the final array carries one entry per block, in arrival
+ * order, with all fields concatenated/overwritten as the stream advances.
+ */
+function mergeReasoningDetails(
+    target: ReasoningDetailChunk[],
+    incoming: ReasoningDetailChunk[],
+): void {
+    for (const chunk of incoming) {
+        if (!chunk || typeof chunk !== "object") continue;
+        const existing = chunk.id
+            ? target.find((c) => c.id === chunk.id)
+            : undefined;
+        if (existing) {
+            if (chunk.type) existing.type = chunk.type;
+            if (chunk.format !== undefined) existing.format = chunk.format;
+            if (typeof chunk.text === "string") {
+                existing.text = (existing.text ?? "") + chunk.text;
+            }
+            if (chunk.signature !== undefined) {
+                existing.signature = chunk.signature;
+            }
+        } else {
+            target.push({ ...chunk });
+        }
+    }
 }
 
 function applyStreamDelta(
@@ -106,9 +142,9 @@ function applyStreamDelta(
             onChunk(contentDelta);
         }
         if (delta?.reasoning_details) {
-            const reasoningText = extractReasoningText(
-                delta.reasoning_details as ReasoningDetailChunk[],
-            );
+            const incoming = delta.reasoning_details as ReasoningDetailChunk[];
+            mergeReasoningDetails(state.reasoningDetails, incoming);
+            const reasoningText = extractReasoningText(incoming);
             if (reasoningText) {
                 thinkingDelta += reasoningText;
                 onChunk("", reasoningText);
@@ -279,6 +315,10 @@ export function buildResponseFromStreamState(
                     role: "assistant",
                     content: state.content,
                     thinking: state.thinking || undefined,
+                    reasoningDetails:
+                        state.reasoningDetails.length > 0
+                            ? state.reasoningDetails
+                            : undefined,
                 },
                 finish_reason:
                     state.finishReason ??
