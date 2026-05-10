@@ -23,15 +23,15 @@ Working set of implementation plans for the post-OSS-launch refactor. These file
 
 ## Workstream index
 
-| ID  | File                  | Status                                                                                      |
-| --- | --------------------- | ------------------------------------------------------------------------------------------- |
-| W0  | `W0-housekeeping.md`  | [x] complete                                                                                |
-| W1  | `W1-quality-gates.md` | [x] complete                                                                                |
-| W2  | `W2-type-safety.md`   | [x] complete                                                                                |
-| W3  | `W3-convex.md`        | [~] mechanical + security shipped; components deferred (need live deployment)               |
-| W4  | `W4-openrouter.md`    | [~] split + deprecation shipped; Wave 2 features deferred (UI scope)                        |
-| W5  | `W5-testing.md`       | [x] complete (Wave 1 Vitest + Knip; Wave 2 RTL + MSW + convex-test + Playwright + coverage) |
-| W6  | `W6-architecture.md`  | [~] Convex provider fix + helper cleanup shipped; component splits deferred                 |
+| ID  | File                  | Status                                                                                                           |
+| --- | --------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| W0  | `W0-housekeeping.md`  | [x] complete                                                                                                     |
+| W1  | `W1-quality-gates.md` | [x] complete                                                                                                     |
+| W2  | `W2-type-safety.md`   | [x] complete                                                                                                     |
+| W3  | `W3-convex.md`        | [~] mechanical + security shipped; components deferred (need live deployment)                                    |
+| W4  | `W4-openrouter.md`    | [~] split + deprecation shipped; Wave 2 features deferred (UI scope)                                             |
+| W5  | `W5-testing.md`       | [x] complete (Wave 1 Vitest + Knip; Wave 2 RTL + MSW + convex-test + Playwright + coverage)                      |
+| W6  | `W6-architecture.md`  | [~] Provider fix + helpers + storage adapter consolidation + ChatWindow split shipped; remaining splits deferred |
 
 ## Sequencing
 

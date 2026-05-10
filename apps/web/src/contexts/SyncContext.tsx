@@ -27,10 +27,11 @@ import {
     QUOTA_WARNING_95,
 } from "@shared/core/quota";
 import { DEFAULT_SYNC_METADATA } from "@/lib/sync/types";
-import type { ConvexClientInterface, ConvexId } from "@/lib/sync/convex-types";
+import type { Id } from "@convex/_generated/dataModel";
 import {
     ConvexStorageAdapter,
     clearCloudAttachmentCaches,
+    type ConvexClient,
 } from "@/lib/sync/convex-adapter";
 import { clearCloudImagesAndRefresh } from "@/lib/sync/clear-cloud-images";
 import {
@@ -193,7 +194,7 @@ function SyncProviderWithAuth({
     isConvexAvailable: boolean;
 }) {
     const { isAuthenticated, isLoading: isAuthLoading } = useConvexAuth();
-    const convexClient = useConvex() as unknown as ConvexClientInterface;
+    const convexClient: ConvexClient = useConvex();
     const userId = useQuery(api.users.getCurrentUserId, {});
     const user = useQuery(api.users.get, userId ? { id: userId } : "skip");
 
@@ -212,8 +213,8 @@ function SyncProviderWithAuth({
 }
 
 function useCloudAdapter(
-    convexClient?: ConvexClientInterface | null,
-    convexUserId?: ConvexId<"users"> | null,
+    convexClient?: ConvexClient | null,
+    convexUserId?: Id<"users"> | null,
     epoch: number = 0,
 ) {
     return useMemo(() => {
@@ -259,7 +260,7 @@ function useQuotaStatus({
     onCloudImagesCleared,
 }: {
     cloudAdapter: ConvexStorageAdapter | null;
-    convexClient?: ConvexClientInterface | null;
+    convexClient?: ConvexClient | null;
     isAuthenticated: boolean;
     onCloudImagesCleared?: () => void;
 }) {
@@ -392,8 +393,8 @@ function SyncProviderBase({
 }: {
     children: React.ReactNode;
     isConvexAvailable: boolean;
-    convexClient?: ConvexClientInterface | null;
-    convexUserId?: ConvexId<"users"> | null;
+    convexClient?: ConvexClient | null;
+    convexUserId?: Id<"users"> | null;
     initialSync?: boolean;
     isAuthenticated?: boolean;
     isAuthLoading?: boolean;

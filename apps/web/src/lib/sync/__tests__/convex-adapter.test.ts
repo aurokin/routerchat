@@ -1,7 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Attachment, ChatSession, Message } from "@/lib/types";
-import type { ConvexClientInterface, ConvexId } from "@/lib/sync/convex-types";
-import { ConvexStorageAdapter } from "@/lib/sync/convex-adapter";
+import type { Id } from "@convex/_generated/dataModel";
+import {
+    ConvexStorageAdapter,
+    type ConvexClient,
+} from "@/lib/sync/convex-adapter";
 import * as storage from "@/lib/storage";
 
 type StorageMock = {
@@ -36,7 +39,7 @@ const createClient = (
     queryResponses: unknown[] = [],
     actionResponses: unknown[] = [],
 ): {
-    client: ConvexClientInterface;
+    client: ConvexClient;
     mutation: ReturnType<typeof vi.fn>;
     query: ReturnType<typeof vi.fn>;
     action: ReturnType<typeof vi.fn>;
@@ -48,7 +51,7 @@ const createClient = (
     const query = vi.fn(async () => queryResponses[queryIndex++]);
     const action = vi.fn(async () => actionResponses[actionIndex++]);
     return {
-        client: { mutation, query, action } as ConvexClientInterface,
+        client: { mutation, query, action } as ConvexClient,
         mutation,
         query,
         action,
@@ -64,7 +67,7 @@ describe("ConvexStorageAdapter", () => {
 
     let storageMock: StorageMock;
     let fetchMock: ReturnType<typeof vi.fn>;
-    const userId = "user-1" as ConvexId<"users">;
+    const userId = "user-1" as Id<"users">;
 
     const chatDoc = {
         _id: "cx-chat-1",

@@ -19,9 +19,10 @@ import {
     runCloneWithAdapters,
 } from "@shared/core/sync/migration-helpers";
 import { api } from "@convex/_generated/api";
+import type { Id } from "@convex/_generated/dataModel";
 import * as storage from "@/lib/storage";
 import { getLocalStorageAdapter } from "./local-adapter";
-import type { ConvexClientInterface, ConvexId } from "./convex-types";
+import type { ConvexClient } from "./convex-adapter";
 
 /**
  * Migrate all local data to cloud storage.
@@ -52,8 +53,8 @@ export async function migrateLocalToCloud(
 }
 
 export async function migrateSkillsToCloud(
-    client: ConvexClientInterface,
-    userId: ConvexId<"users">,
+    client: ConvexClient,
+    userId: Id<"users">,
 ): Promise<void> {
     const skills: Skill[] = storage.getSkills();
 

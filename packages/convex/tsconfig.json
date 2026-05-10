@@ -12,7 +12,7 @@
         "esModuleInterop": true,
         "skipLibCheck": true,
         "jsx": "preserve",
-        "types": ["bun"]
+        "types": ["bun", "vite/client"]
     },
     "include": ["convex/**/*", "vitest.config.ts"]
 }

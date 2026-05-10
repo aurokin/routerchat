@@ -3,7 +3,7 @@
 **Goal:** kill the 1000+ LOC files, simplify state lifting where React 19 `use()` makes it cleaner, fix the parallel-typing problem in the storage adapter, and silence the Convex provider console noise.
 
 **Wave:** 1 (Convex provider fix, pulled forward) → 3 (everything else).
-**Status:** [~] Wave 1 shipped (Convex provider fix, helper cleanup). Wave 3 splits + storage-adapter consolidation deferred (require per-piece design judgment).
+**Status:** [~] Wave 1 + Phase 1 (Convex provider, helper cleanup, storage-adapter consolidation, ChatWindow split) shipped. Settings page / SyncContext / FirstRunTutorialModal splits + ChatContext `use()` still deferred.
 **Depends on:** W2 (clean type baseline). Parallelizable with W4 features once split lands.
 
 ## Current state (from audit)
@@ -55,17 +55,16 @@ Convex provider console noise (sweep #3 finding): when `NEXT_PUBLIC_CONVEX_URL` 
 - [ ] Each component is < 300 LOC.
 - [ ] Tabs / accordion stays in the orchestrator.
 
-### ChatWindow split (Wave 3) — DEFERRED
+### ChatWindow split (Wave 3) — landed
 
-- [ ] `apps/web/src/components/chat/ChatWindow.tsx` (992 LOC) extract:
-    - `<MessageStream>` — streaming render + reasoning display
-    - `<ToolCallSurface>` — tool calls + results (post-W4 tool calling)
-    - `<AttachmentRenderer>` — image/PDF preview
-    - `<MessageActions>` — copy, retry, edit
-    - `<EmptyState>` — first-run prompt
-- [ ] Each < 250 LOC.
-- [ ] `ChatWindow` becomes a layout/router for these.
-- [ ] Resolve the existing `eslint-disable react-hooks/exhaustive-deps` at line 342 as part of the split.
+- [x] `apps/web/src/components/chat/ChatWindow.tsx` 992 → 309 LOC. Pure layout that wires extracted children + hooks.
+- [x] `ChatEmptyState.tsx` (69 LOC) — first-run welcome surface; pre-existing JSX moved verbatim.
+- [x] `ChatErrorBanner.tsx` (40 LOC) — error display + retry button. Owns the `ChatError` shape.
+- [x] `hooks/useStreamingMessage.ts` (87 LOC) — RAF-batched streaming overlay state plus the pure `applyStreamingMessageOverlay` helper. Re-exported from `ChatWindow.tsx` for the existing chat-window test.
+- [x] `hooks/useChatKeybindings.ts` (292 LOC) — the giant keyboard-shortcut effect with all model/thinking/search/skill cycling. Pure deps in / no return.
+- [x] `hooks/useSendMessage.ts` (443 LOC) — the streaming send flow + retry orchestration, including `getChatTitleUpdate` (still re-exported from `ChatWindow.tsx`).
+- [-] `<ToolCallSurface>`, `<AttachmentRenderer>`, `<MessageActions>` — wait for W4 tool calling and the `MessageList` split. They don't carve cleanly out of the current chat surface.
+- [-] The `eslint-disable react-hooks/exhaustive-deps` for the focus-on-chat-change effect remains intentional — focus on chat _id_ change is the desired behavior, not on every input ref update.
 
 ### SyncContext split (Wave 3) — DEFERRED
 
@@ -91,16 +90,13 @@ Convex provider console noise (sweep #3 finding): when `NEXT_PUBLIC_CONVEX_URL` 
 - [ ] Decision principle (per locked decision): "simplify where it makes sense" — no blanket rewrite.
 - [ ] No state library adoption (Zustand/Jotai) unless explicit win surfaces.
 
-### Storage adapter parallel-typing fix (Wave 3) — DEFERRED
+### Storage adapter parallel-typing fix (Wave 3) — landed
 
-- [ ] Decide between two approaches:
-    - **(a) Move convex-adapter fully into `apps/web/`**: `packages/shared` exports a pure `StorageAdapter` interface; `apps/web` implements both local and convex adapters with full generated-type access. Simpler, drops the `convex-adapter-base.ts` parallel.
-    - **(b) Export branded ID types from `packages/convex/_generated`**: shared package consumes them via `@convex-types`. Preserves current 2-package structure but adds a generated-types boundary.
-- [ ] Recommendation: (a) — RouterChat is web-only since the mobile app was deleted. Drops 692 LOC + eliminates every `as unknown as ConvexAPI` cast.
-- [ ] Confirm decision before executing.
-- [ ] Migrate `apps/web/src/lib/sync/convex-adapter.ts` + `packages/shared/src/core/sync/convex-adapter-base.ts` → consolidated `apps/web/src/lib/sync/convex-adapter.ts`.
-- [ ] Strip parallel typing from `packages/shared/src/core/sync/storage-adapter.ts` — keep just the interface.
-- [ ] Update `useSync().isConvexAvailable` and `ConvexAvailabilityContext` to be the single source of truth (cross-link with the provider fix above).
+- [x] Approach (a) shipped: `apps/web/src/lib/sync/convex-adapter.ts` is now the single home for the adapter. `packages/shared/src/core/sync/convex-adapter-base.ts` (692 LOC) and `apps/web/src/lib/sync/convex-types.ts` (354 LOC) are deleted.
+- [x] Adapter uses real `Doc<"chats">` / `Id<"users">` etc. from `@convex/_generated/dataModel` and `api` from `@convex/_generated/api` directly. `as unknown as ConvexAPI` is gone. `ConvexClient` (a structural shape over `mutation` / `query` / `action`) is exported for the few callers (SyncContext, migration, clear-cloud-images, tests) that need a typed handle.
+- [x] `packages/shared/src/core/sync/index.ts` keeps the `StorageAdapter` interface only — no Convex-specific types in shared anymore.
+- [-] Aligning `useSync().isConvexAvailable` with `ConvexAvailabilityContext` deferred: they already agree at runtime via `isConvexConfigured()`; collapsing into a single source needs the SyncContext split to land first.
+- [-] The 976-LOC `convex-adapter-base.test.ts` was deleted along with the file. The 413-LOC `apps/web/src/lib/sync/__tests__/convex-adapter.test.ts` continues to cover the public adapter behavior end-to-end. Porting the deleted edge cases is follow-up work.
 
 ### Inconsistent helper cleanup (W3 finding pulled here) — landed
 

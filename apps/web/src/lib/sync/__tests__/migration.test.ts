@@ -7,7 +7,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ChatSession, Message, Attachment, Skill } from "@/lib/types";
 import type { StorageAdapter } from "@/lib/sync/storage-adapter";
-import type { ConvexClientInterface, ConvexId } from "@/lib/sync/convex-types";
+import type { Id } from "@convex/_generated/dataModel";
+import type { ConvexClient } from "@/lib/sync/convex-adapter";
 import type { MigrationProgress } from "@/lib/sync/types";
 import {
     migrateLocalToCloud,
@@ -130,8 +131,8 @@ describe("migrateSkillsToCloud", () => {
         const mutation = vi.fn(async () => "skill-id");
         const client = {
             mutation,
-        } as unknown as ConvexClientInterface;
-        const userId = "user-1" as ConvexId<"users">;
+        } as unknown as ConvexClient;
+        const userId = "user-1" as Id<"users">;
 
         await migrateSkillsToCloud(client, userId);
 

@@ -1,5 +1,5 @@
 import { api } from "@convex/_generated/api";
-import type { ConvexClientInterface } from "@/lib/sync/convex-types";
+import type { ConvexClient } from "@/lib/sync/convex-adapter";
 
 export async function clearCloudImagesAndRefresh({
     convexClient,
@@ -7,7 +7,7 @@ export async function clearCloudImagesAndRefresh({
     onCloudImagesCleared,
     refreshQuotaStatus,
 }: {
-    convexClient: ConvexClientInterface | null | undefined;
+    convexClient: ConvexClient | null | undefined;
     clearAttachmentCaches: () => Promise<void>;
     onCloudImagesCleared?: () => void;
     refreshQuotaStatus: () => Promise<void>;
