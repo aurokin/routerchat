@@ -5,6 +5,7 @@ import type {
 } from "@shared/core/skills";
 import type {
     Message as SharedMessage,
+    MessageUsage as SharedMessageUsage,
     ChatSession as SharedChatSession,
     UserSettings as SharedUserSettings,
     Attachment as SharedAttachment,
@@ -14,6 +15,8 @@ import type {
 } from "@shared/core/types";
 
 export type { Skill };
+
+export type MessageUsage = SharedMessageUsage;
 
 export type { SharedSkillSettings as SkillSettings };
 export type { SharedSkillSettingsUpdate as SkillSettingsUpdate };

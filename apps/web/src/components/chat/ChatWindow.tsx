@@ -8,6 +8,7 @@ import { MessageList } from "./MessageList";
 import { MessageInput } from "./MessageInput";
 import { ChatEmptyState } from "./ChatEmptyState";
 import { ChatErrorBanner } from "./ChatErrorBanner";
+import { ChatUsageSummary } from "./ChatUsageSummary";
 import {
     applyStreamingMessageOverlay,
     useStreamingMessage,
@@ -269,6 +270,8 @@ export function ChatWindow() {
                     onRetry={handleRetry}
                 />
             )}
+
+            <ChatUsageSummary messages={messages} />
 
             <div className="flex-1 overflow-y-auto relative z-10">
                 <MessageList messages={displayedMessages} sending={sending} />

@@ -3,6 +3,7 @@
 import { useCallback, useState } from "react";
 import {
     sendMessage,
+    toMessageUsage,
     OpenRouterApiError,
     buildMessageContent,
     type MessageContent,
@@ -331,7 +332,7 @@ export function useSendMessage(
                     thinking: undefined,
                 });
 
-                await sendMessage(
+                const response = await sendMessage(
                     apiKey,
                     currentMessages,
                     chatSnapshot,
@@ -354,10 +355,12 @@ export function useSendMessage(
                 const trimmedResponse =
                     trimTrailingEmptyLines(fullResponse) ?? "";
                 const trimmedThinking = trimTrailingEmptyLines(fullThinking);
+                const usage = toMessageUsage(response.usage) ?? undefined;
                 await updateMessage(assistantMessage.id, {
                     content: trimmedResponse,
                     contextContent: trimmedResponse,
                     thinking: trimmedThinking || undefined,
+                    usage,
                 });
             } catch (err) {
                 if (assistantMessageId && (fullResponse || fullThinking)) {

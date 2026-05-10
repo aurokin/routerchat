@@ -57,7 +57,7 @@ The Wave 2 feature set carries substantial UI scope (cost badges, tool-call UI, 
 
 - [ ]   1. Tool calling
 - [ ]   2. Prompt caching
-- [ ]   3. Generation cost reporting (foundation laid: `UsageDetails.cost`, `cache_discount`, `prompt_tokens_details`; needs `getGeneration` helper + UI)
+- [x]   3. Generation cost reporting — `MessageUsage` persisted on assistant messages; `ChatUsageSummary` aggregates and renders per-chat tokens, optional cost, and cached tokens. `toMessageUsage()` adapts the wire-format `usage` payload to the storage shape. `getGeneration` deferred — inline `usage` from `stream_options.include_usage` already covers the per-chat aggregate use case.
 - [ ]   4. Structured outputs
 - [ ]   5. Reasoning fidelity (persist + replay `reasoning_details[]`)
 - [ ]   6. Provider routing

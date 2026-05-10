@@ -18,6 +18,14 @@ const skillSnapshotValidator = v.object({
     createdAt: v.number(),
 });
 
+const messageUsageValidator = v.object({
+    promptTokens: v.number(),
+    completionTokens: v.number(),
+    totalTokens: v.number(),
+    cost: v.optional(v.number()),
+    cachedTokens: v.optional(v.number()),
+});
+
 const messageDocValidator = v.object({
     _id: v.id("messages"),
     _creationTime: v.number(),
@@ -37,6 +45,7 @@ const messageDocValidator = v.object({
     thinkingLevel: v.optional(v.string()),
     searchLevel: v.optional(v.string()),
     attachmentIds: v.optional(v.array(v.string())),
+    usage: v.optional(messageUsageValidator),
     createdAt: v.number(),
 });
 
@@ -161,6 +170,7 @@ export const create = mutation({
         thinkingLevel: v.optional(v.string()),
         searchLevel: v.optional(v.string()),
         attachmentIds: v.optional(v.array(v.string())),
+        usage: v.optional(messageUsageValidator),
         createdAt: v.optional(v.number()),
     },
     returns: v.id("messages"),
@@ -211,6 +221,7 @@ export const create = mutation({
             thinkingLevel: args.thinkingLevel,
             searchLevel: args.searchLevel,
             attachmentIds: args.attachmentIds,
+            usage: args.usage,
             createdAt: args.createdAt ?? now,
         });
 
@@ -235,6 +246,7 @@ export const update = mutation({
         contextContent: v.optional(v.string()),
         thinking: v.optional(v.string()),
         attachmentIds: v.optional(v.array(v.string())),
+        usage: v.optional(messageUsageValidator),
     },
     returns: v.null(),
     handler: async (ctx, args) => {

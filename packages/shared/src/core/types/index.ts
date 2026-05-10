@@ -10,6 +10,23 @@ export type ThinkingLevel =
 
 export type SearchLevel = "none" | "low" | "medium" | "high";
 
+/**
+ * Storage-side usage record for an assistant message.
+ *
+ * Distinct from `UsageDetails` (the wire format from OpenRouter): camelCased,
+ * stripped of fields we don't surface (cache_discount), and with `cost`
+ * required when present so cost summing doesn't have to second-guess.
+ */
+export interface MessageUsage {
+    promptTokens: number;
+    completionTokens: number;
+    totalTokens: number;
+    /** Provider-reported USD cost. Undefined when the provider doesn't report. */
+    cost?: number;
+    /** Cached prompt tokens (subset of promptTokens). Undefined when not reported. */
+    cachedTokens?: number;
+}
+
 export interface Message {
     id: string;
     sessionId: string;
@@ -22,6 +39,7 @@ export interface Message {
     thinkingLevel?: ThinkingLevel;
     searchLevel?: SearchLevel;
     attachmentIds?: string[];
+    usage?: MessageUsage;
     createdAt: number;
 }
 

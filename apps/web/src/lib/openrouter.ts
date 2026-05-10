@@ -21,6 +21,7 @@ import {
     type ReasoningDetailChunk,
     fetchModels,
     sendMessage,
+    toMessageUsage,
     OpenRouterApiErrorImpl,
     validateApiKey,
     type OpenRouterMessage,
@@ -40,6 +41,7 @@ export {
     buildMessageContent,
     validateApiKey,
     sendMessage,
+    toMessageUsage,
     extractReasoningText,
 };
 export { OpenRouterApiErrorImpl as OpenRouterApiError };

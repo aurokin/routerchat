@@ -58,7 +58,11 @@ interface ChatContextType {
         updates: Partial<
             Pick<
                 Message,
-                "content" | "contextContent" | "thinking" | "attachmentIds"
+                | "content"
+                | "contextContent"
+                | "thinking"
+                | "attachmentIds"
+                | "usage"
             >
         >,
     ) => Promise<void>;
@@ -375,7 +379,11 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
             updates: Partial<
                 Pick<
                     Message,
-                    "content" | "contextContent" | "thinking" | "attachmentIds"
+                    | "content"
+                    | "contextContent"
+                    | "thinking"
+                    | "attachmentIds"
+                    | "usage"
                 >
             >,
         ) => {

@@ -17,6 +17,14 @@ const skillSnapshotValidator = v.object({
     createdAt: v.number(),
 });
 
+const messageUsageValidator = v.object({
+    promptTokens: v.number(),
+    completionTokens: v.number(),
+    totalTokens: v.number(),
+    cost: v.optional(v.number()),
+    cachedTokens: v.optional(v.number()),
+});
+
 export default defineSchema({
     ...authTables,
     users: defineTable({
@@ -72,6 +80,7 @@ export default defineSchema({
         thinkingLevel: v.optional(v.string()),
         searchLevel: v.optional(v.string()),
         attachmentIds: v.optional(v.array(v.string())),
+        usage: v.optional(messageUsageValidator),
         createdAt: v.number(),
     })
         .index("by_chat_created", ["chatId", "createdAt"])

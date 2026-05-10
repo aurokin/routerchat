@@ -44,3 +44,4 @@ export { buildWebSearchTool } from "./web-search";
 export { fetchModels } from "./models";
 export { validateApiKey } from "./key";
 export { sendMessage } from "./send-message";
+export { toMessageUsage } from "./usage";
