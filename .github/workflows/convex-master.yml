@@ -1,9 +1,8 @@
 name: Convex Deploy (Production)
 
 on:
-    push:
-        branches:
-            - main
+    # Auto-deploy paused while no production deployment is running.
+    # Re-enable by restoring the `push:` block.
     workflow_dispatch: {}
 
 concurrency:

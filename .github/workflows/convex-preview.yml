@@ -1,9 +1,8 @@
 name: Convex Deploy (Preview)
 
 on:
-    push:
-        branches:
-            - preview
+    # Auto-deploy paused while no preview deployment is running.
+    # Re-enable by restoring the `push:` block.
     workflow_dispatch: {}
 
 concurrency:

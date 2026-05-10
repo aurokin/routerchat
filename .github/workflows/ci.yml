@@ -1,10 +1,8 @@
 name: CI
 
 on:
-    pull_request:
-    push:
-        branches:
-            - main
+    # Auto-triggers paused while no deployments are running.
+    # Re-enable by restoring `pull_request:` and the `push:` block.
     workflow_dispatch: {}
 
 concurrency:
