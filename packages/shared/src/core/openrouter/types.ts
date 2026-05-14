@@ -39,7 +39,7 @@ export type MessageContent =
     | Array<TextContent | ImageUrlContent | FileContent>;
 
 export interface OpenRouterMessage {
-    role: string;
+    role: "user" | "assistant" | "system" | "tool";
     content: MessageContent;
     /**
      * When present on an assistant message, the provider treats these as its
@@ -249,9 +249,33 @@ export interface ChatCompletionResponse {
     usage: UsageDetails;
 }
 
+export type ToolExecutionStatus = "pending" | "running" | "success" | "error";
+
+export interface ToolExecutionRecord {
+    id: string;
+    name: string;
+    arguments: string;
+    result?: string;
+    status?: ToolExecutionStatus;
+    error?: string;
+}
+
 export interface OpenRouterApiModel {
     id: string;
     owned_by: string;
+    description?: string;
+    pricing?: {
+        prompt?: string;
+        completion?: string;
+        image?: string;
+        request?: string;
+    };
+    context_length?: number;
+    top_provider?: {
+        context_length?: number;
+    };
+    expiration_date?: string;
+    knowledge_cutoff?: string;
     supported_parameters?: string[];
     architecture?: {
         input_modalities?: string[];

@@ -151,6 +151,22 @@ describe("attachments.create metadata validation", () => {
         expect(deletedStorageIds).toEqual([STORAGE_ID]);
     });
 
+    test("fails URL attachments with negative size", async () => {
+        const { ctx, deletedStorageIds } = buildContext({ metadata: null });
+
+        await expect(
+            runHandler(createAttachment as unknown as HandlerExport, ctx, {
+                ...baseArgs({
+                    storageId: undefined,
+                    url: "https://example.com/image.png",
+                    size: -1,
+                }),
+            }),
+        ).rejects.toThrow("Attachment metadata is invalid");
+
+        expect(deletedStorageIds).toEqual([]);
+    });
+
     test("fails and deletes storage when uploaded size exceeds limit", async () => {
         const tooLarge = LIMITS.maxAttachmentBytes + 1;
         const { ctx, deletedStorageIds } = buildContext({

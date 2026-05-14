@@ -65,6 +65,7 @@ export async function migrateSkillsToCloud(
             name: skill.name,
             description: skill.description,
             prompt: skill.prompt,
+            toolIds: skill.toolIds,
             createdAt: skill.createdAt,
         });
     }

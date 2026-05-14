@@ -58,6 +58,27 @@ describe("AttachmentPreview", () => {
         );
     });
 
+    it("renders a PDF attachment without an image preview", () => {
+        render(
+            <AttachmentPreview
+                attachments={[
+                    stubAttachment({
+                        type: "file",
+                        mimeType: "application/pdf",
+                        filename: "report.pdf",
+                        preview: "",
+                    }),
+                ]}
+                processingCount={0}
+                onRemove={() => {}}
+            />,
+        );
+
+        expect(screen.getByText("PDF")).toBeInTheDocument();
+        expect(screen.getByText("report.pdf")).toBeInTheDocument();
+        expect(screen.queryByAltText("Attachment preview")).toBeNull();
+    });
+
     it("calls onRemove with the attachment id when the X is clicked", async () => {
         const user = userEvent.setup();
         const onRemove = vi.fn();

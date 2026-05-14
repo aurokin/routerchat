@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useRef } from "react";
-import { ImagePlus } from "lucide-react";
+import { Paperclip } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface AttachmentButtonProps {
@@ -37,7 +37,7 @@ export function AttachmentButton({
             <input
                 ref={inputRef}
                 type="file"
-                accept="image/jpeg,image/png,image/gif,image/webp"
+                accept="image/jpeg,image/png,image/gif,image/webp,application/pdf"
                 multiple
                 onChange={handleChange}
                 className="hidden"
@@ -47,7 +47,7 @@ export function AttachmentButton({
                 type="button"
                 onClick={handleClick}
                 disabled={disabled}
-                title="Attach images"
+                title="Attach files"
                 className={cn(
                     "p-2.5 transition-all duration-200 cursor-pointer",
                     disabled
@@ -56,7 +56,7 @@ export function AttachmentButton({
                     className,
                 )}
             >
-                <ImagePlus size={16} />
+                <Paperclip size={16} />
             </button>
         </>
     );

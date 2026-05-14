@@ -132,6 +132,16 @@ function CloudSyncSettingsContent({
         isAuthenticated ? {} : "skip",
     );
     const user = useQuery(api.users.get, userId ? { id: userId } : "skip");
+    const activeDeletes = useQuery(
+        api.cleanup.listActive,
+        userId ? { userId } : "skip",
+    );
+    const failedDeletes =
+        activeDeletes?.filter((operation) => operation.status === "failed") ??
+        [];
+    const runningDeletes =
+        activeDeletes?.filter((operation) => operation.status !== "failed") ??
+        [];
     const isUserIdLoaded = !isAuthenticated || userId !== undefined;
     const isInitialSyncLoaded =
         !isAuthenticated || (isUserIdLoaded && user?.initialSync !== undefined);
@@ -371,6 +381,38 @@ function CloudSyncSettingsContent({
                         {isAuthenticated ? "Sign out" : "Sign in"}
                     </button>
                 </div>
+
+                {failedDeletes.length > 0 && (
+                    <div className="flex items-start gap-3 text-xs border border-error/30 bg-error/10 px-4 py-3 rounded-sm text-error">
+                        <div className="mt-0.5 h-3.5 w-3.5 shrink-0 border border-error" />
+                        <div>
+                            <p className="font-medium">Cloud cleanup failed</p>
+                            <p className="text-error/80">
+                                {failedDeletes[0]?.error ??
+                                    "A delete operation could not finish."}
+                            </p>
+                        </div>
+                    </div>
+                )}
+
+                {runningDeletes.length > 0 && (
+                    <div className="flex items-start gap-3 text-xs border border-warning/30 bg-warning/10 px-4 py-3 rounded-sm text-warning">
+                        <Loader2
+                            size={14}
+                            className="mt-0.5 animate-spin shrink-0"
+                        />
+                        <div>
+                            <p className="font-medium">
+                                Cloud cleanup in progress
+                            </p>
+                            <p className="text-warning/80">
+                                {runningDeletes.length} delete operation
+                                {runningDeletes.length === 1 ? "" : "s"} still
+                                running.
+                            </p>
+                        </div>
+                    </div>
+                )}
             </div>
 
             {/* Enable confirmation dialog */}

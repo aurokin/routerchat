@@ -12,9 +12,9 @@ import {
     Sparkles,
     ChevronDown,
     ChevronLeft,
-    ChevronRight,
     Search,
     Cpu,
+    FileText,
     Image as ImageIcon,
 } from "lucide-react";
 import { cn, externalLinkProps } from "@/lib/utils";
@@ -22,6 +22,7 @@ import { MessageListSkeleton } from "./MessageListSkeleton";
 import { ImageGalleryDialog, type GalleryImage } from "./ImageGalleryDialog";
 import { useStorageAdapter } from "@/contexts/SyncContext";
 import { createDataUrl } from "@/lib/imageProcessing";
+import { ReasoningSection, ToolExecutionSection } from "./MessageAuxiliary";
 
 interface MessageListProps {
     messages: Message[];
@@ -77,6 +78,7 @@ export function MessageList({ messages, sending, loading }: MessageListProps) {
                             await storageAdapter.getAttachment(attachmentId);
                         if (
                             attachment &&
+                            attachment.type === "image" &&
                             !attachment.purgedAt &&
                             (attachment.url || attachment.data)
                         ) {
@@ -144,15 +146,17 @@ export function MessageList({ messages, sending, loading }: MessageListProps) {
     return (
         <>
             <div className="max-w-4xl mx-auto p-6 space-y-8">
-                {messages.map((message, index) => (
-                    <MessageItem
-                        key={message.id}
-                        message={message}
-                        index={index}
-                        sending={sending && index === messages.length - 1}
-                        onImageClick={handleImageClick}
-                    />
-                ))}
+                {messages.map((message, index) =>
+                    message.role === "tool" ? null : (
+                        <MessageItem
+                            key={message.id}
+                            message={message}
+                            index={index}
+                            sending={sending && index === messages.length - 1}
+                            onImageClick={handleImageClick}
+                        />
+                    ),
+                )}
 
                 {/* Auto-scroll anchor */}
                 <div ref={bottomRef} />
@@ -168,52 +172,6 @@ export function MessageList({ messages, sending, loading }: MessageListProps) {
     );
 }
 
-interface ReasoningSectionProps {
-    thinking: string;
-    isStreaming?: boolean;
-}
-
-function ReasoningSection({ thinking, isStreaming }: ReasoningSectionProps) {
-    const [isExpanded, setIsExpanded] = useState(false);
-
-    return (
-        <div className="mb-3 inline-flex flex-col max-w-[90%] border border-warning/30 bg-warning/15">
-            <button
-                onClick={() => setIsExpanded(!isExpanded)}
-                className="w-full flex items-center gap-2 px-4 py-3 text-warning hover:bg-warning/10 active:bg-warning/15 transition-colors cursor-pointer"
-            >
-                {isExpanded ? (
-                    <ChevronDown size={14} />
-                ) : (
-                    <ChevronRight size={14} />
-                )}
-                <Brain size={14} />
-                <span className="text-xs font-medium uppercase tracking-wider">
-                    Reasoning
-                </span>
-
-                {isStreaming && (
-                    <span className="ml-2 flex items-center gap-1.5 text-warning/70">
-                        <span className="typing-indicator flex gap-0.5">
-                            <span />
-                            <span />
-                            <span />
-                        </span>
-                    </span>
-                )}
-            </button>
-            {isExpanded && (
-                <div className="px-4 pb-3 border-t border-warning/20">
-                    <p className="text-foreground text-sm whitespace-pre-wrap mono leading-relaxed pt-3 max-h-64 sm:max-h-96 overflow-y-auto">
-                        {thinking}
-                    </p>
-                </div>
-            )}
-        </div>
-    );
-}
-
-// Component to display message attachments
 function MessageAttachments({
     attachmentIds,
     onImageClick,
@@ -265,6 +223,7 @@ function MessageAttachments({
     return (
         <div className="flex flex-wrap gap-2 mb-3">
             {attachments.map((attachment, index) => {
+                const isImage = attachment.type === "image";
                 const hasRenderable = Boolean(
                     attachment.url || attachment.data,
                 );
@@ -276,11 +235,13 @@ function MessageAttachments({
                 return (
                     <button
                         key={attachment.id}
-                        onClick={() => onImageClick(attachment.id)}
-                        disabled={unavailable}
+                        onClick={() => {
+                            if (isImage) onImageClick(attachment.id);
+                        }}
+                        disabled={unavailable || !isImage}
                         className={cn(
                             "relative w-20 h-20 bg-muted/30 border border-border/50 overflow-hidden transition-colors",
-                            unavailable
+                            unavailable || !isImage
                                 ? "opacity-70 cursor-not-allowed"
                                 : "hover:border-primary/50 cursor-pointer",
                         )}
@@ -290,6 +251,13 @@ function MessageAttachments({
                                 <ImageIcon size={18} />
                                 <span className="text-[10px] uppercase tracking-wider">
                                     Removed
+                                </span>
+                            </div>
+                        ) : !isImage ? (
+                            <div className="w-full h-full flex flex-col items-center justify-center gap-1 px-1 text-muted-foreground/80">
+                                <FileText size={20} />
+                                <span className="max-w-full truncate px-1 text-[10px]">
+                                    {attachment.filename ?? "PDF"}
                                 </span>
                             </div>
                         ) : (
@@ -349,7 +317,6 @@ function MessageItem({
                     isUser ? "items-end" : "items-start",
                 )}
             >
-                {/* Skill collapsible for user message with skill */}
                 {isSkillMessage && skill && (
                     <details className="mb-3 inline-flex flex-col max-w-[90%] border border-primary/30 bg-primary/15">
                         <summary
@@ -403,6 +370,13 @@ function MessageItem({
                         isStreaming={sending && !message.content}
                     />
                 )}
+
+                {message.toolExecutions &&
+                    message.toolExecutions.length > 0 && (
+                        <ToolExecutionSection
+                            executions={message.toolExecutions}
+                        />
+                    )}
 
                 {/* Main content - hidden while reasoning is streaming */}
                 {!(sending && message.thinking && !message.content) && (

@@ -51,6 +51,10 @@ interface ChatContextType {
         thinkingLevel?: ThinkingLevel;
         searchLevel?: SearchLevel;
         attachmentIds?: string[];
+        toolCalls?: Message["toolCalls"];
+        toolCallId?: string;
+        toolName?: string;
+        toolExecutions?: Message["toolExecutions"];
         chatId?: string;
     }) => Promise<Message>;
     updateMessage: (
@@ -64,6 +68,10 @@ interface ChatContextType {
                 | "attachmentIds"
                 | "usage"
                 | "reasoningDetails"
+                | "toolCalls"
+                | "toolCallId"
+                | "toolName"
+                | "toolExecutions"
             >
         >,
     ) => Promise<void>;
@@ -321,6 +329,11 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
             thinkingLevel?: ThinkingLevel;
             searchLevel?: SearchLevel;
             attachmentIds?: string[];
+            toolCalls?: Message["toolCalls"];
+            toolCallId?: string;
+            toolName?: string;
+            toolExecutions?: Message["toolExecutions"];
+            createdAt?: number;
             chatId?: string;
         }): Promise<Message> => {
             const targetChatId = message.chatId ?? currentChat?.id;
@@ -338,9 +351,13 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
                 thinkingLevel: message.thinkingLevel,
                 searchLevel: message.searchLevel,
                 attachmentIds: message.attachmentIds,
+                toolCalls: message.toolCalls,
+                toolCallId: message.toolCallId,
+                toolName: message.toolName,
+                toolExecutions: message.toolExecutions,
                 sessionId: targetChatId,
                 id: message.id ?? uuid(),
-                createdAt: Date.now(),
+                createdAt: message.createdAt ?? Date.now(),
             };
 
             await storageAdapter.createMessage(newMessage);
@@ -386,6 +403,10 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
                     | "attachmentIds"
                     | "usage"
                     | "reasoningDetails"
+                    | "toolCalls"
+                    | "toolCallId"
+                    | "toolName"
+                    | "toolExecutions"
                 >
             >,
         ) => {

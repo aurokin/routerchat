@@ -5,6 +5,18 @@ export interface OpenRouterModel {
     name: string;
     provider: string;
     supportedParameters?: SupportedParameter[];
+    pricing?: {
+        prompt?: string;
+        completion?: string;
+        image?: string;
+        request?: string;
+    };
+    contextLength?: number;
+    topProviderContextLength?: number;
+    inputModalities?: string[];
+    description?: string;
+    expirationDate?: string;
+    knowledgeCutoff?: string;
 }
 
 export enum SupportedParameter {
@@ -36,4 +48,10 @@ export function modelSupportsVision(
     return (
         model?.supportedParameters?.includes(SupportedParameter.Vision) ?? false
     );
+}
+
+export function modelSupportsAudio(
+    model: OpenRouterModel | undefined,
+): boolean {
+    return model?.inputModalities?.includes("audio") ?? false;
 }

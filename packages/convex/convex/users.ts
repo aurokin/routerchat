@@ -1,25 +1,17 @@
-import { ConvexError, v } from "convex/values";
+import { v } from "convex/values";
 import {
     internalMutation,
     internalQuery,
     mutation,
-    type MutationCtx,
     query,
 } from "./_generated/server";
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { requireAuthUserId, requireUserMatches } from "./lib/authz";
-import { drainBatches, safeStorageDelete } from "./lib/batch";
+import { enqueueDeleteOperation } from "./lib/delete_operations";
 import {
-    cloudUsageCountersToPatch,
-    computeCloudAttachmentUsage,
-    computeCloudChatCount,
-    computeCloudMessageCount,
-    computeCloudUsageCounters,
-    type CloudUsageCounters,
-    ensureCloudUsageCounters,
-    readCloudUsageCountersFromUser,
-    zeroCloudUsageCounters,
-} from "./lib/cloud_usage";
+    ensureCloudUsageBackfilled,
+    getCloudUsage,
+} from "./lib/usage_aggregates";
 import type { Id } from "./_generated/dataModel";
 
 const userDocValidator = v.object({
@@ -36,6 +28,30 @@ const userDocValidator = v.object({
     encryptedApiKey: v.optional(v.string()),
     apiKeyNonce: v.optional(v.string()),
     apiKeyUpdatedAt: v.optional(v.number()),
+    providerSort: v.optional(
+        v.union(
+            v.literal("default"),
+            v.literal("price"),
+            v.literal("throughput"),
+            v.literal("latency"),
+        ),
+    ),
+    usageAggregatesBackfilledAt: v.optional(v.number()),
+    usageBackfillStage: v.optional(
+        v.union(
+            v.literal("chats"),
+            v.literal("messages"),
+            v.literal("skills"),
+            v.literal("attachments"),
+        ),
+    ),
+    usageBackfillCursor: v.optional(v.union(v.null(), v.string())),
+    usageBackfillStartedAt: v.optional(v.number()),
+    usageBackfilledChatCount: v.optional(v.number()),
+    usageBackfilledMessageCount: v.optional(v.number()),
+    usageBackfilledSkillCount: v.optional(v.number()),
+    usageBackfilledAttachmentCount: v.optional(v.number()),
+    usageBackfilledAttachmentBytes: v.optional(v.number()),
     cloudChatCount: v.optional(v.number()),
     cloudMessageCount: v.optional(v.number()),
     cloudSkillCount: v.optional(v.number()),
@@ -90,26 +106,12 @@ export const getStorageUsage = query({
         const authenticatedUserId = await requireAuthUserId(ctx);
         requireUserMatches(authenticatedUserId, args.userId);
 
-        const user = await ctx.db.get(authenticatedUserId);
-        const cached = readCloudUsageCountersFromUser(user);
-        if (cached) {
-            return {
-                bytes: cached.attachmentBytes,
-                messageCount: cached.messageCount,
-                sessionCount: cached.chatCount,
-            };
-        }
-
-        const [attachments, sessionCount, messageCount] = await Promise.all([
-            computeCloudAttachmentUsage(ctx, authenticatedUserId),
-            computeCloudChatCount(ctx, authenticatedUserId),
-            computeCloudMessageCount(ctx, authenticatedUserId),
-        ]);
+        const usage = await getCloudUsage(ctx, authenticatedUserId);
 
         return {
-            bytes: attachments.attachmentBytes,
-            messageCount,
-            sessionCount,
+            bytes: usage.attachmentBytes,
+            messageCount: usage.messageCount,
+            sessionCount: usage.chatCount,
         };
     },
 });
@@ -124,11 +126,6 @@ export const create = internalMutation({
         return await ctx.db.insert("users", {
             email: args.email ?? undefined,
             initialSync: false,
-            cloudChatCount: 0,
-            cloudMessageCount: 0,
-            cloudSkillCount: 0,
-            cloudAttachmentCount: 0,
-            cloudAttachmentBytes: 0,
             createdAt: now,
             updatedAt: now,
         });
@@ -137,61 +134,14 @@ export const create = internalMutation({
 
 export const resetCloudData = mutation({
     args: {},
-    returns: v.null(),
+    returns: v.id("deleteOperations"),
     handler: async (ctx) => {
         const userId = await requireAuthUserId(ctx);
 
-        // Clear attachments first so we don't have to do nested deletions.
-        await drainBatches(
-            () =>
-                ctx.db
-                    .query("attachments")
-                    .withIndex("by_user_created", (q) => q.eq("userId", userId))
-                    .take(200),
-            async (attachment) => {
-                await safeStorageDelete(ctx, attachment.storageId);
-                await ctx.db.delete(attachment._id);
-            },
-        );
-
-        await drainBatches(
-            () =>
-                ctx.db
-                    .query("messages")
-                    .withIndex("by_user", (q) => q.eq("userId", userId))
-                    .take(500),
-            async (message) => {
-                await ctx.db.delete(message._id);
-            },
-        );
-
-        await drainBatches(
-            () =>
-                ctx.db
-                    .query("chats")
-                    .withIndex("by_user_updated", (q) => q.eq("userId", userId))
-                    .take(200),
-            async (chat) => {
-                await ctx.db.delete(chat._id);
-            },
-        );
-
-        await drainBatches(
-            () =>
-                ctx.db
-                    .query("skills")
-                    .withIndex("by_user", (q) => q.eq("userId", userId))
-                    .take(200),
-            async (skill) => {
-                await ctx.db.delete(skill._id);
-            },
-        );
-
-        await ctx.db.patch(
+        return await enqueueDeleteOperation(ctx, {
             userId,
-            cloudUsageCountersToPatch(zeroCloudUsageCounters()),
-        );
-        return null;
+            kind: "userData",
+        });
     },
 });
 
@@ -200,65 +150,8 @@ export const ensureUsageCounters = mutation({
     returns: cloudUsageCountersValidator,
     handler: async (ctx) => {
         const userId = await requireAuthUserId(ctx);
-        return await ensureCloudUsageCounters(ctx, userId);
-    },
-});
-
-async function rebuildUsageCounters(
-    ctx: MutationCtx,
-    userId: Id<"users">,
-): Promise<CloudUsageCounters> {
-    const computed = await computeCloudUsageCounters(ctx, userId);
-    await ctx.db.patch(userId, {
-        ...cloudUsageCountersToPatch(computed),
-        updatedAt: Date.now(),
-    });
-    return computed;
-}
-
-// Internal / admin repair tool: recompute from ground truth and overwrite counters.
-// This is intended for operations and should not be exposed to clients.
-export const rebuildUsageCountersForUser = internalMutation({
-    args: { userId: v.id("users") },
-    returns: cloudUsageCountersValidator,
-    handler: async (ctx, args) => {
-        return await rebuildUsageCounters(ctx, args.userId);
-    },
-});
-
-export const rebuildUsageCountersForEmail = internalMutation({
-    args: { email: v.string() },
-    returns: cloudUsageCountersValidator,
-    handler: async (ctx, args) => {
-        const rawEmail = args.email.trim();
-        if (!rawEmail) {
-            throw new ConvexError({
-                code: "FIELD_REQUIRED",
-                message: "Email is required",
-                fieldName: "email",
-            });
-        }
-
-        const candidates = Array.from(
-            new Set([rawEmail, rawEmail.toLowerCase()]),
-        );
-        let user = null;
-        for (const email of candidates) {
-            user = await ctx.db
-                .query("users")
-                .withIndex("email", (q) => q.eq("email", email))
-                .unique();
-            if (user) break;
-        }
-        if (!user) {
-            throw new ConvexError({
-                code: "NOT_FOUND",
-                message: "User not found",
-                resource: "users",
-            });
-        }
-
-        return await rebuildUsageCounters(ctx, user._id);
+        await ensureCloudUsageBackfilled(ctx, userId);
+        return await getCloudUsage(ctx, userId);
     },
 });
 
@@ -272,6 +165,26 @@ export const setInitialSync = mutation({
 
         await ctx.db.patch(userId, {
             initialSync: args.initialSync,
+            updatedAt: Date.now(),
+        });
+        return null;
+    },
+});
+
+export const setProviderSort = mutation({
+    args: {
+        providerSort: v.union(
+            v.literal("default"),
+            v.literal("price"),
+            v.literal("throughput"),
+            v.literal("latency"),
+        ),
+    },
+    returns: v.null(),
+    handler: async (ctx, args) => {
+        const userId = await requireAuthUserId(ctx);
+        await ctx.db.patch(userId, {
+            providerSort: args.providerSort,
             updatedAt: Date.now(),
         });
         return null;

@@ -326,6 +326,26 @@ describe("ChatContext logic", () => {
             expect(newMessage.thinkingLevel).toBe("high");
             expect(newMessage.searchLevel).toBe("medium");
         });
+
+        test("preserves tool message replay fields", () => {
+            const messageInput = {
+                role: "tool" as const,
+                content: '{"ok":true}',
+                contextContent: '{"ok":true}',
+                toolCallId: "call-1",
+                toolName: "calculator",
+            };
+
+            const newMessage: Message = {
+                ...messageInput,
+                id: expect.any(String),
+                sessionId: "chat-123",
+                createdAt: expect.any(Number),
+            };
+
+            expect(newMessage.toolCallId).toBe("call-1");
+            expect(newMessage.toolName).toBe("calculator");
+        });
     });
 
     describe("updateMessage", () => {

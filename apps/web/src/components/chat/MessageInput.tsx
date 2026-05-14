@@ -27,6 +27,7 @@ import {
     processImage,
     generateThumbnail,
     createDataUrl,
+    readFileAsDataURL,
 } from "@/lib/imageProcessing";
 import {
     hasImageInClipboardEvent,
@@ -39,6 +40,12 @@ import {
     MAX_SESSION_STORAGE,
 } from "@shared/core/quota";
 import { ConvexStorageAdapter } from "@/lib/sync/convex-adapter";
+
+const MAX_PDF_BYTES = 10 * 1024 * 1024;
+
+function dataUrlToBase64(dataUrl: string): string {
+    return dataUrl.split(",")[1] ?? "";
+}
 
 interface MessageInputProps {
     onSend: (content: string, attachments?: PendingAttachment[]) => void;
@@ -142,67 +149,84 @@ export const MessageInput = forwardRef<HTMLTextAreaElement, MessageInputProps>(
         };
 
         // Check storage limits before allowing attachment
-        const checkStorageLimits = useCallback(async (): Promise<{
-            allowed: boolean;
-            error?: string;
-        }> => {
-            try {
-                const isCloudStorage =
-                    storageAdapter instanceof ConvexStorageAdapter;
-                const totalLimit = isCloudStorage
-                    ? CLOUD_IMAGE_QUOTA
-                    : LOCAL_IMAGE_QUOTA;
+        const checkStorageLimits = useCallback(
+            async (
+                files: File[],
+            ): Promise<{
+                allowed: boolean;
+                error?: string;
+            }> => {
+                try {
+                    const hasImageAttachment = files.some(
+                        (file) => file.type !== "application/pdf",
+                    );
+                    if (!hasImageAttachment) {
+                        return { allowed: true };
+                    }
 
-                const usage = await storageAdapter.getStorageUsage();
-                if (usage.bytes >= totalLimit) {
-                    return {
-                        allowed: false,
-                        error: isCloudStorage
-                            ? "Cloud storage limit reached. Delete old conversations or remove cloud images to free up space."
-                            : "Storage limit reached. Delete old conversations to free up space.",
-                    };
-                }
+                    const isCloudStorage =
+                        storageAdapter instanceof ConvexStorageAdapter;
+                    const totalLimit = isCloudStorage
+                        ? CLOUD_IMAGE_QUOTA
+                        : LOCAL_IMAGE_QUOTA;
 
-                // Per-conversation image limits are a local-storage guardrail. Cloud storage has
-                // its own server-side limits, and checking per-chat usage would require
-                // downloading or querying a lot of metadata.
-                if (!isCloudStorage && sessionId) {
-                    const sessionMessages =
-                        await storageAdapter.getMessagesByChat(sessionId);
-                    let sessionUsage = 0;
+                    const imageBytes =
+                        await storageAdapter.getImageStorageUsage();
+                    if (imageBytes >= totalLimit) {
+                        return {
+                            allowed: false,
+                            error: isCloudStorage
+                                ? "Cloud storage limit reached. Delete old conversations or remove cloud images to free up space."
+                                : "Storage limit reached. Delete old conversations to free up space.",
+                        };
+                    }
 
-                    for (const message of sessionMessages) {
-                        if (message.attachmentIds?.length) {
-                            const attachments =
-                                await storageAdapter.getAttachmentsByMessage(
-                                    message.id,
+                    // Per-conversation image limits are a local-storage guardrail. Cloud storage has
+                    // its own server-side limits, and checking per-chat usage would require
+                    // downloading or querying a lot of metadata.
+                    if (!isCloudStorage && sessionId) {
+                        const sessionMessages =
+                            await storageAdapter.getMessagesByChat(sessionId);
+                        let sessionUsage = 0;
+
+                        for (const message of sessionMessages) {
+                            if (message.attachmentIds?.length) {
+                                const attachments =
+                                    await storageAdapter.getAttachmentsByMessage(
+                                        message.id,
+                                    );
+                                sessionUsage += attachments.reduce(
+                                    (sum, attachment) =>
+                                        sum +
+                                        (attachment.type === "image"
+                                            ? attachment.size
+                                            : 0),
+                                    0,
                                 );
-                            sessionUsage += attachments.reduce(
-                                (sum, attachment) => sum + attachment.size,
-                                0,
-                            );
+                            }
+                        }
+
+                        if (sessionUsage >= MAX_SESSION_STORAGE) {
+                            return {
+                                allowed: false,
+                                error: "This conversation has reached its image limit. Start a new conversation to add more images.",
+                            };
                         }
                     }
 
-                    if (sessionUsage >= MAX_SESSION_STORAGE) {
-                        return {
-                            allowed: false,
-                            error: "This conversation has reached its image limit. Start a new conversation to add more images.",
-                        };
-                    }
+                    return { allowed: true };
+                } catch {
+                    // If storage check fails, allow the attachment attempt
+                    return { allowed: true };
                 }
-
-                return { allowed: true };
-            } catch {
-                // If storage check fails, allow the attachment attempt
-                return { allowed: true };
-            }
-        }, [sessionId, storageAdapter]);
+            },
+            [sessionId, storageAdapter],
+        );
 
         // Process files and add as pending attachments
         const processFiles = useCallback(
             async (files: File[]) => {
-                const { allowed, error } = await checkStorageLimits();
+                const { allowed, error } = await checkStorageLimits(files);
                 if (!allowed) {
                     setModalError({
                         title: "Storage Limit Reached",
@@ -215,6 +239,38 @@ export const MessageInput = forwardRef<HTMLTextAreaElement, MessageInputProps>(
 
                 for (const file of files) {
                     try {
+                        if (file.type === "application/pdf") {
+                            if (file.size > MAX_PDF_BYTES) {
+                                throw new Error(
+                                    "PDF exceeds maximum file size (10MB)",
+                                );
+                            }
+                            const dataUrl = await readFileAsDataURL(file);
+                            const attachment: PendingAttachment = {
+                                id: generateUUID(),
+                                type: "file",
+                                mimeType: "application/pdf",
+                                data: dataUrlToBase64(dataUrl),
+                                width: 0,
+                                height: 0,
+                                size: file.size,
+                                filename: file.name || "document.pdf",
+                                preview: "",
+                            };
+
+                            setPendingAttachments((prev) => [
+                                ...prev,
+                                attachment,
+                            ]);
+                            continue;
+                        }
+
+                        if (!visionSupported) {
+                            throw new Error(
+                                "This model does not support image attachments. Attach a PDF or choose a vision-capable model.",
+                            );
+                        }
+
                         const processed = await processImage(file);
                         const dataUrl = createDataUrl(
                             processed.data,
@@ -235,13 +291,13 @@ export const MessageInput = forwardRef<HTMLTextAreaElement, MessageInputProps>(
 
                         setPendingAttachments((prev) => [...prev, attachment]);
                     } catch (err) {
-                        console.error("Failed to process image:", err);
+                        console.error("Failed to process attachment:", err);
                         const message =
                             err instanceof Error
                                 ? err.message
-                                : "Failed to process image";
+                                : "Failed to process attachment";
                         setModalError({
-                            title: "Couldn't Add Image",
+                            title: "Couldn't Add Attachment",
                             message,
                         });
                     } finally {
@@ -249,7 +305,7 @@ export const MessageInput = forwardRef<HTMLTextAreaElement, MessageInputProps>(
                     }
                 }
             },
-            [checkStorageLimits],
+            [checkStorageLimits, visionSupported],
         );
 
         const handleFileSelect = useCallback(
@@ -281,12 +337,6 @@ export const MessageInput = forwardRef<HTMLTextAreaElement, MessageInputProps>(
                     return;
                 }
 
-                // URL passthrough: only honoured in local-only mode for now
-                // (cloud sync of URL attachments requires Convex schema work).
-                const isCloudStorage =
-                    storageAdapter instanceof ConvexStorageAdapter;
-                if (isCloudStorage) return;
-
                 const urlImage =
                     parseImageUrlFromClipboardEvent(clipboardEvent);
                 if (urlImage) {
@@ -305,7 +355,7 @@ export const MessageInput = forwardRef<HTMLTextAreaElement, MessageInputProps>(
                     setPendingAttachments((prev) => [...prev, attachment]);
                 }
             },
-            [visionSupported, processFiles, storageAdapter],
+            [visionSupported, processFiles],
         );
 
         useEffect(() => {
@@ -367,18 +417,16 @@ export const MessageInput = forwardRef<HTMLTextAreaElement, MessageInputProps>(
                                 className={cn(
                                     "w-full px-4 py-3.5 bg-transparent text-foreground resize-none",
                                     "placeholder:text-muted-foreground",
-                                    visionSupported ? "pr-32" : "pr-20",
+                                    "pr-32",
                                 )}
                                 style={{ outline: "none", boxShadow: "none" }}
                                 rows={1}
                             />
                             <div className="absolute right-3 bottom-3 flex items-center gap-1">
-                                {visionSupported && (
-                                    <AttachmentButton
-                                        onAttach={handleFileSelect}
-                                        disabled={disabled}
-                                    />
-                                )}
+                                <AttachmentButton
+                                    onAttach={handleFileSelect}
+                                    disabled={disabled}
+                                />
                                 <KeybindingsHelp />
                                 <button
                                     type="submit"

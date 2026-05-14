@@ -44,20 +44,26 @@ export const LIMITS = {
         "ROUTERCHAT_MAX_ATTACHMENT_BYTES",
         10 * 1024 * 1024, // 10MB
     ),
-    maxChatsPerUser: readPositiveIntEnv("ROUTERCHAT_MAX_CHATS_PER_USER", 5_000),
     maxAttachmentsPerMessage: readPositiveIntEnv(
         "ROUTERCHAT_MAX_ATTACHMENTS_PER_MESSAGE",
         50,
-    ),
-    maxSkillsPerUser: readPositiveIntEnv("ROUTERCHAT_MAX_SKILLS_PER_USER", 500),
-    maxMessagesPerUser: readPositiveIntEnv(
-        "ROUTERCHAT_MAX_MESSAGES_PER_USER",
-        100_000,
     ),
     maxTotalAttachmentBytesPerUser: readPositiveIntEnv(
         // Convex env var names must be < 40 chars.
         "ROUTERCHAT_MAX_USER_TOTAL_ATTACH_BYTES",
         1 * 1024 * 1024 * 1024, // 1GB
+    ),
+    maxTotalChatsPerUser: readPositiveIntEnv(
+        "ROUTERCHAT_MAX_USER_CHATS",
+        5_000,
+    ),
+    maxTotalMessagesPerUser: readPositiveIntEnv(
+        "ROUTERCHAT_MAX_USER_MESSAGES",
+        20_000,
+    ),
+    maxTotalSkillsPerUser: readPositiveIntEnv(
+        "ROUTERCHAT_MAX_USER_SKILLS",
+        500,
     ),
 
     // Query limits (anti-DoS knobs). Keep >= corresponding maxes above.

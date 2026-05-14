@@ -327,7 +327,10 @@ export interface StorageUsage {
 export async function getStorageUsage(): Promise<StorageUsage> {
     const db = await getDB();
     const attachments = await db.getAll("attachments");
-    const totalAttachmentSize = attachments.reduce((sum, a) => sum + a.size, 0);
+    const totalAttachmentSize = attachments.reduce(
+        (sum, a) => sum + (a.type === "image" && !a.purgedAt ? a.size : 0),
+        0,
+    );
     const messageCount = await db.count("messages");
     const sessionCount = await db.count("chats");
 
@@ -336,6 +339,19 @@ export async function getStorageUsage(): Promise<StorageUsage> {
         messages: messageCount,
         sessions: sessionCount,
     };
+}
+
+export async function getImageStorageUsage(): Promise<number> {
+    const db = await getDB();
+    const attachments = await db.getAll("attachments");
+    return attachments.reduce(
+        (sum, attachment) =>
+            sum +
+            (attachment.type === "image" && !attachment.purgedAt
+                ? attachment.size
+                : 0),
+        0,
+    );
 }
 
 export async function getAttachmentStorageBySession(
@@ -366,18 +382,29 @@ export async function cleanupOldAttachments(maxBytes: number): Promise<number> {
     const attachments = await db.getAllFromIndex("attachments", "by-created");
     // Attachments are sorted by createdAt ascending (oldest first)
 
-    const usage = await getStorageUsage();
-    let currentSize = usage.attachments;
+    let currentSize = attachments.reduce(
+        (sum, attachment) =>
+            sum +
+            (attachment.type === "image" && !attachment.purgedAt
+                ? attachment.size
+                : 0),
+        0,
+    );
     let freedBytes = 0;
 
-    // Purge oldest attachments until we're under the limit.
+    // Purge oldest image attachments until image storage is under the limit.
     // We keep the attachment record with `purgedAt` so the UI can display a placeholder
     // instead of silently removing the image from chat history.
     for (const attachment of attachments) {
         if (currentSize <= maxBytes) break;
 
         // Already purged or empty.
-        if (attachment.purgedAt || !attachment.data || attachment.size <= 0) {
+        if (
+            attachment.type !== "image" ||
+            attachment.purgedAt ||
+            !attachment.data ||
+            attachment.size <= 0
+        ) {
             continue;
         }
 

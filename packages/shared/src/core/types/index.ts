@@ -1,7 +1,18 @@
 import type { Skill } from "../skills";
-import type { ProviderSort, ReasoningDetailChunk } from "../openrouter/types";
+import type {
+    ProviderSort,
+    ReasoningDetailChunk,
+    ToolCall,
+    ToolExecutionRecord,
+} from "../openrouter/types";
 
 export type ProviderSortPreference = ProviderSort | "default";
+export type PdfParserEnginePreference =
+    | "auto"
+    | "mistral-ocr"
+    | "pdf-text"
+    | "cloudflare-ai"
+    | "native";
 
 export type ThinkingLevel =
     | "xhigh"
@@ -28,12 +39,14 @@ export interface MessageUsage {
     cost?: number;
     /** Cached prompt tokens (subset of promptTokens). Undefined when not reported. */
     cachedTokens?: number;
+    /** Number of OpenRouter-hosted web-search requests used by this response. */
+    webSearchRequests?: number;
 }
 
 export interface Message {
     id: string;
     sessionId: string;
-    role: "user" | "assistant" | "system";
+    role: "user" | "assistant" | "system" | "tool";
     content: string;
     contextContent: string;
     thinking?: string;
@@ -46,6 +59,10 @@ export interface Message {
      * Wire shape: https://openrouter.ai/docs/use-cases/reasoning-tokens
      */
     reasoningDetails?: ReasoningDetailChunk[];
+    toolCalls?: ToolCall[];
+    toolCallId?: string;
+    toolName?: string;
+    toolExecutions?: ToolExecutionRecord[];
     skill?: Skill | null;
     modelId?: string;
     thinkingLevel?: ThinkingLevel;
@@ -85,17 +102,22 @@ export interface UserSettings {
      * (cheapest / highest-throughput / lowest-latency).
      */
     providerSort: ProviderSortPreference;
+    /** Request JSON-object structured output for normal chat responses. */
+    structuredOutputJson: boolean;
+    /** OpenRouter PDF parser plugin engine. `"auto"` omits the plugin. */
+    pdfParserEngine: PdfParserEnginePreference;
 }
 
 export interface Attachment {
     id: string;
     messageId: string;
-    type: "image";
+    type: "image" | "file";
     mimeType: string;
     data: string;
     width: number;
     height: number;
     size: number;
+    filename?: string;
     /**
      * Remote image URL when this attachment is a passthrough reference
      * rather than locally-stored bytes. When set, `data` is the empty string
@@ -108,12 +130,13 @@ export interface Attachment {
 
 export interface PendingAttachment {
     id: string;
-    type: "image";
+    type: "image" | "file";
     mimeType: string;
     data: string;
     width: number;
     height: number;
     size: number;
+    filename?: string;
     preview: string;
     /** See {@link Attachment.url}. */
     url?: string;

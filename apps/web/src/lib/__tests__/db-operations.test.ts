@@ -404,6 +404,18 @@ describe("db operations", () => {
             size: 250,
             createdAt: 11,
         });
+        await db.saveAttachment({
+            id: "att-pdf",
+            messageId: "msg-1",
+            type: "file",
+            mimeType: "application/pdf",
+            data: "pdf-data",
+            width: 0,
+            height: 0,
+            size: 500,
+            filename: "doc.pdf",
+            createdAt: 12,
+        });
 
         const usage = await db.getStorageUsage();
         expect(usage.sessions).toBe(1);
@@ -509,6 +521,47 @@ describe("db operations", () => {
         expect(att3).toBeDefined();
         expect(att3?.data).toBe("data");
         expect(att3?.purgedAt).toBeUndefined();
+    });
+
+    it("keeps PDF attachments out of image cleanup", async () => {
+        await db.saveAttachment({
+            id: "att-image",
+            messageId: "msg-1",
+            type: "image",
+            mimeType: "image/png",
+            data: "image-data",
+            width: 10,
+            height: 10,
+            size: 100,
+            createdAt: 1,
+        });
+        await db.saveAttachment({
+            id: "att-pdf",
+            messageId: "msg-1",
+            type: "file",
+            mimeType: "application/pdf",
+            data: "pdf-data",
+            width: 0,
+            height: 0,
+            size: 500,
+            filename: "doc.pdf",
+            createdAt: 2,
+        });
+
+        expect(await db.getImageStorageUsage()).toBe(100);
+
+        const freed = await db.cleanupOldAttachments(0);
+        expect(freed).toBe(100);
+
+        const image = await db.getAttachment("att-image");
+        expect(image?.data).toBe("");
+        expect(image?.size).toBe(0);
+        expect(image?.purgedAt).toBeGreaterThan(0);
+
+        const pdf = await db.getAttachment("att-pdf");
+        expect(pdf?.data).toBe("pdf-data");
+        expect(pdf?.size).toBe(500);
+        expect(pdf?.purgedAt).toBeUndefined();
     });
 
     it("clears all data", async () => {

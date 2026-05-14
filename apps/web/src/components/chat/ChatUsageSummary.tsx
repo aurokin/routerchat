@@ -33,6 +33,10 @@ export function ChatUsageSummary({ messages }: ChatUsageSummaryProps) {
         summary.cachedTokens > 0
             ? ` · ${formatTokenCount(summary.cachedTokens)} cached`
             : "";
+    const webSearchSegment =
+        summary.webSearchRequests > 0
+            ? ` · ${summary.webSearchRequests} web search${summary.webSearchRequests === 1 ? "" : "es"}`
+            : "";
 
     return (
         <div
@@ -47,6 +51,7 @@ export function ChatUsageSummary({ messages }: ChatUsageSummaryProps) {
             <span className="tabular-nums">
                 {formatTokenCount(summary.totalTokens)} tokens
                 {cachedSegment}
+                {webSearchSegment}
             </span>
             {summary.cost !== undefined && (
                 <>

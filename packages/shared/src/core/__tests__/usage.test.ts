@@ -72,6 +72,21 @@ describe("toMessageUsage", () => {
         expect(result).not.toHaveProperty("cachedTokens");
     });
 
+    it("flattens server web-search usage", () => {
+        const usage: UsageDetails = {
+            prompt_tokens: 100,
+            completion_tokens: 50,
+            total_tokens: 150,
+            server_tool_use: { web_search_requests: 2 },
+        };
+        expect(toMessageUsage(usage)).toEqual({
+            promptTokens: 100,
+            completionTokens: 50,
+            totalTokens: 150,
+            webSearchRequests: 2,
+        });
+    });
+
     it("derives totalTokens when only prompt and completion are reported", () => {
         const usage: UsageDetails = {
             prompt_tokens: 80,

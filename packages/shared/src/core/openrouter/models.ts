@@ -65,6 +65,28 @@ export async function fetchModels(): Promise<OpenRouterModel[]> {
                 name: model.id.split("/").pop() || model.id,
                 provider: model.owned_by,
                 supportedParameters: supportedParams,
+                ...(model.pricing ? { pricing: model.pricing } : {}),
+                ...(typeof model.context_length === "number"
+                    ? { contextLength: model.context_length }
+                    : {}),
+                ...(typeof model.top_provider?.context_length === "number"
+                    ? {
+                          topProviderContextLength:
+                              model.top_provider.context_length,
+                      }
+                    : {}),
+                ...(model.architecture?.input_modalities
+                    ? { inputModalities: model.architecture.input_modalities }
+                    : {}),
+                ...(model.description
+                    ? { description: model.description }
+                    : {}),
+                ...(model.expiration_date
+                    ? { expirationDate: model.expiration_date }
+                    : {}),
+                ...(model.knowledge_cutoff
+                    ? { knowledgeCutoff: model.knowledge_cutoff }
+                    : {}),
             };
         });
 }

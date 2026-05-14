@@ -103,6 +103,7 @@ describe("migrateSkillsToCloud", () => {
                 name: "Summarize",
                 description: "Summaries",
                 prompt: "Summarize",
+                toolIds: ["calculator"],
                 createdAt: 1000,
             },
         ];
@@ -145,6 +146,7 @@ describe("migrateSkillsToCloud", () => {
                 name: "Summarize",
                 description: "Summaries",
                 prompt: "Summarize",
+                toolIds: ["calculator"],
                 createdAt: 1000,
             }),
         );

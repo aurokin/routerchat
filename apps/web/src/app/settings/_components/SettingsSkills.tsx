@@ -1,9 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { Book, Plus, Edit2, Trash2 } from "lucide-react";
+import { Book, Plus, Edit2, Trash2, Wrench } from "lucide-react";
 import { useSettings } from "@/contexts/SettingsContext";
 import type { Skill } from "@/lib/types";
+import { LOCAL_TOOL_DEFINITIONS } from "@shared/core/tools";
 
 export function SettingsSkills() {
     const { skills, addSkill, updateSkill, deleteSkill } = useSettings();
@@ -13,12 +14,14 @@ export function SettingsSkills() {
     const [skillName, setSkillName] = useState("");
     const [skillDescription, setSkillDescription] = useState("");
     const [skillPrompt, setSkillPrompt] = useState("");
+    const [skillToolIds, setSkillToolIds] = useState<string[]>([]);
 
     const openNewSkillForm = () => {
         setEditingSkillId(null);
         setSkillName("");
         setSkillDescription("");
         setSkillPrompt("");
+        setSkillToolIds([]);
         setShowSkillForm(true);
     };
 
@@ -27,6 +30,7 @@ export function SettingsSkills() {
         setSkillName(skill.name);
         setSkillDescription(skill.description);
         setSkillPrompt(skill.prompt);
+        setSkillToolIds(skill.toolIds ?? []);
         setShowSkillForm(true);
     };
 
@@ -36,6 +40,7 @@ export function SettingsSkills() {
         setSkillName("");
         setSkillDescription("");
         setSkillPrompt("");
+        setSkillToolIds([]);
     };
 
     const handleSaveSkill = () => {
@@ -46,12 +51,14 @@ export function SettingsSkills() {
                 name: skillName.trim(),
                 description: skillDescription.trim(),
                 prompt: skillPrompt.trim(),
+                toolIds: skillToolIds,
             });
         } else {
             addSkill({
                 name: skillName.trim(),
                 description: skillDescription.trim(),
                 prompt: skillPrompt.trim(),
+                toolIds: skillToolIds,
             });
         }
 
@@ -62,6 +69,14 @@ export function SettingsSkills() {
         if (confirm("Are you sure you want to delete this skill?")) {
             deleteSkill(id);
         }
+    };
+
+    const toggleTool = (toolId: string) => {
+        setSkillToolIds((prev) =>
+            prev.includes(toolId)
+                ? prev.filter((id) => id !== toolId)
+                : [...prev, toolId],
+        );
     };
 
     return (
@@ -140,6 +155,36 @@ export function SettingsSkills() {
                                 className="input-deco min-h-[120px] resize-y"
                             />
                         </div>
+                        <div>
+                            <div className="label-deco">Tools</div>
+                            <div className="grid gap-2 sm:grid-cols-2">
+                                {LOCAL_TOOL_DEFINITIONS.map((tool) => (
+                                    <label
+                                        key={tool.id}
+                                        className="flex items-start gap-3 p-3 border border-border bg-background cursor-pointer hover:border-primary/30 transition-colors"
+                                    >
+                                        <input
+                                            type="checkbox"
+                                            checked={skillToolIds.includes(
+                                                tool.id,
+                                            )}
+                                            onChange={() => toggleTool(tool.id)}
+                                            className="mt-1"
+                                            aria-label={tool.label}
+                                        />
+                                        <span className="min-w-0">
+                                            <span className="flex items-center gap-2 text-sm font-medium text-foreground">
+                                                <Wrench size={13} />
+                                                {tool.label}
+                                            </span>
+                                            <span className="block mt-1 text-xs text-muted-foreground leading-relaxed">
+                                                {tool.description}
+                                            </span>
+                                        </span>
+                                    </label>
+                                ))}
+                            </div>
+                        </div>
                         <div className="flex gap-3">
                             <button
                                 onClick={handleSaveSkill}
@@ -192,6 +237,29 @@ export function SettingsSkills() {
                                     <p className="text-xs text-muted-foreground/70 mt-2 line-clamp-2 font-mono">
                                         {skill.prompt}
                                     </p>
+                                    {skill.toolIds &&
+                                        skill.toolIds.length > 0 && (
+                                            <div className="mt-3 flex flex-wrap gap-1.5">
+                                                {skill.toolIds.map((toolId) => {
+                                                    const tool =
+                                                        LOCAL_TOOL_DEFINITIONS.find(
+                                                            (definition) =>
+                                                                definition.id ===
+                                                                toolId,
+                                                        );
+                                                    return (
+                                                        <span
+                                                            key={toolId}
+                                                            className="inline-flex items-center gap-1 px-2 py-0.5 border border-accent/20 bg-accent/10 text-accent text-[11px]"
+                                                        >
+                                                            <Wrench size={11} />
+                                                            {tool?.label ??
+                                                                toolId}
+                                                        </span>
+                                                    );
+                                                })}
+                                            </div>
+                                        )}
                                 </div>
                                 <div className="flex items-center gap-1 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
                                     <button

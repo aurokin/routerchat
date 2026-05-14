@@ -10,7 +10,11 @@ import {
     Trash2,
 } from "lucide-react";
 import { useSync } from "@/contexts/SyncContext";
-import { cleanupOldAttachments, getStorageUsage } from "@/lib/db";
+import {
+    cleanupOldAttachments,
+    getImageStorageUsage,
+    getStorageUsage,
+} from "@/lib/db";
 import { LOCAL_IMAGE_QUOTA } from "@shared/core/quota";
 import { cn } from "@/lib/utils";
 
@@ -44,8 +48,11 @@ export function SettingsLocalData() {
 
     const loadStorageUsage = useCallback(async () => {
         try {
-            const usage = await getStorageUsage();
-            setStorageUsage(usage);
+            const [usage, imageBytes] = await Promise.all([
+                getStorageUsage(),
+                getImageStorageUsage(),
+            ]);
+            setStorageUsage({ ...usage, attachments: imageBytes });
         } catch (error) {
             console.error("Failed to load storage usage:", error);
         } finally {

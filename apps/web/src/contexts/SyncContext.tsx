@@ -7,12 +7,10 @@ import React, {
     useState,
     useCallback,
     useMemo,
-    useRef,
     useSyncExternalStore,
 } from "react";
 import { useConvex, useConvexAuth, useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
-import { isConvexConfigured } from "@/lib/sync/config";
 import type {
     SyncState,
     SyncMetadata,
@@ -21,28 +19,25 @@ import type {
     CloneProgress,
     CloneOptions,
 } from "@/lib/sync/types";
-import {
-    LOCAL_IMAGE_QUOTA,
-    QUOTA_WARNING_80,
-    QUOTA_WARNING_95,
-} from "@shared/core/quota";
 import { DEFAULT_SYNC_METADATA } from "@/lib/sync/types";
 import type { Id } from "@convex/_generated/dataModel";
+import { type ConvexClient } from "@/lib/sync/convex-adapter";
 import {
-    ConvexStorageAdapter,
-    clearCloudAttachmentCaches,
-    type ConvexClient,
-} from "@/lib/sync/convex-adapter";
-import { clearCloudImagesAndRefresh } from "@/lib/sync/clear-cloud-images";
+    useActiveStorageAdapter,
+    useCloudAdapter,
+} from "@/lib/sync/active-adapter";
 import {
-    migrateLocalToCloud,
-    migrateSkillsToCloud,
-    cloneCloudToLocal,
-} from "@/lib/sync/migration";
-import { getCloudQuotaStatus } from "@/lib/sync/quota";
+    runCloneCloudToLocal,
+    runEnableCloudSyncMigration,
+} from "@/lib/sync/migration-runner";
+import { useQuotaStatus } from "@/lib/sync/quota-status";
+import {
+    applySyncStateChange,
+    convexAvailabilityStore,
+    resolveStoredSyncState,
+    shouldDisableCloudOnSignOut,
+} from "@/lib/sync/state-machine";
 import * as storage from "@/lib/storage";
-import { getApiKey } from "@/lib/storage";
-import { getLocalStorageAdapter } from "@/lib/sync/local-adapter";
 import type { StorageAdapter } from "@/lib/sync/storage-adapter";
 import { LoadingScreen } from "@/components/ui/LoadingScreen";
 
@@ -90,67 +85,6 @@ interface SyncContextType {
 }
 
 const SyncContext = createContext<SyncContextType | null>(null);
-
-type ConvexAvailabilitySnapshot = {
-    isAvailable: boolean;
-    isChecked: boolean;
-};
-
-const convexAvailabilityStore = (() => {
-    const SERVER_SNAPSHOT: ConvexAvailabilitySnapshot = {
-        isAvailable: false,
-        isChecked: false,
-    };
-    let snapshot: ConvexAvailabilitySnapshot = {
-        isAvailable: false,
-        isChecked: false,
-    };
-    let initialized = false;
-    const listeners = new Set<() => void>();
-
-    const setSnapshot = (next: ConvexAvailabilitySnapshot) => {
-        if (
-            next.isAvailable === snapshot.isAvailable &&
-            next.isChecked === snapshot.isChecked
-        ) {
-            return;
-        }
-
-        snapshot = next;
-        listeners.forEach((listener) => listener());
-    };
-
-    const evaluate = () => {
-        setSnapshot({
-            isAvailable: isConvexConfigured() === true,
-            isChecked: true,
-        });
-    };
-
-    const ensureInitialized = () => {
-        if (initialized || typeof window === "undefined") {
-            return;
-        }
-
-        initialized = true;
-        queueMicrotask(evaluate);
-    };
-
-    return {
-        subscribe(listener: () => void) {
-            ensureInitialized();
-            listeners.add(listener);
-            return () => listeners.delete(listener);
-        },
-        getSnapshot() {
-            ensureInitialized();
-            return snapshot;
-        },
-        getServerSnapshot(): ConvexAvailabilitySnapshot {
-            return SERVER_SNAPSHOT;
-        },
-    };
-})();
 
 /**
  * Sync Provider
@@ -210,176 +144,6 @@ function SyncProviderWithAuth({
             {children}
         </SyncProviderBase>
     );
-}
-
-function useCloudAdapter(
-    convexClient?: ConvexClient | null,
-    convexUserId?: Id<"users"> | null,
-    epoch: number = 0,
-) {
-    return useMemo(() => {
-        // `epoch` is intentionally used as a cache-buster to force creating a
-        // fresh adapter instance after destructive operations (e.g. clearing
-        // cloud images) so attachment effects re-run.
-        void epoch;
-
-        if (!convexClient || !convexUserId) {
-            return null;
-        }
-
-        return new ConvexStorageAdapter(convexClient, convexUserId);
-    }, [convexClient, convexUserId, epoch]);
-}
-
-function useActiveStorageAdapter({
-    cloudAdapter,
-    isConvexAvailable,
-    syncState,
-    isAuthenticated,
-}: {
-    cloudAdapter: ConvexStorageAdapter | null;
-    isConvexAvailable: boolean;
-    syncState: SyncState;
-    isAuthenticated: boolean;
-}) {
-    return useMemo((): StorageAdapter => {
-        const canUseCloud =
-            isConvexAvailable &&
-            syncState === "cloud-enabled" &&
-            isAuthenticated &&
-            cloudAdapter;
-
-        return canUseCloud ? cloudAdapter : getLocalStorageAdapter();
-    }, [cloudAdapter, isConvexAvailable, isAuthenticated, syncState]);
-}
-
-function useQuotaStatus({
-    cloudAdapter,
-    convexClient,
-    isAuthenticated,
-    onCloudImagesCleared,
-}: {
-    cloudAdapter: ConvexStorageAdapter | null;
-    convexClient?: ConvexClient | null;
-    isAuthenticated: boolean;
-    onCloudImagesCleared?: () => void;
-}) {
-    const hasEnsuredUsageCountersRef = useRef(false);
-    const [localQuotaStatus, setLocalQuotaStatus] = useState<QuotaStatus>({
-        used: 0,
-        limit: LOCAL_IMAGE_QUOTA,
-        percentage: 0,
-        isWarning80: false,
-        isWarning95: false,
-        isExceeded: false,
-    });
-    const [cloudQuotaStatus, setCloudQuotaStatus] =
-        useState<QuotaStatus | null>(null);
-    const [cloudStorageUsage, setCloudStorageUsage] = useState<{
-        bytes: number;
-        messageCount: number;
-        sessionCount: number;
-    } | null>(null);
-
-    useEffect(() => {
-        if (!convexClient || !cloudAdapter || !isAuthenticated) {
-            hasEnsuredUsageCountersRef.current = false;
-            return;
-        }
-
-        if (hasEnsuredUsageCountersRef.current) return;
-        hasEnsuredUsageCountersRef.current = true;
-
-        void convexClient
-            .mutation(api.users.ensureUsageCounters, {})
-            .catch((error) => {
-                hasEnsuredUsageCountersRef.current = false;
-                console.error("Failed to ensure cloud usage counters:", error);
-            });
-    }, [cloudAdapter, convexClient, isAuthenticated]);
-
-    const refreshLocalQuotaStatus = useCallback(async () => {
-        try {
-            const adapter = getLocalStorageAdapter();
-            const used = await adapter.getImageStorageUsage();
-            const limit = LOCAL_IMAGE_QUOTA;
-            const percentage = used / limit;
-
-            setLocalQuotaStatus({
-                used,
-                limit,
-                percentage,
-                isWarning80: percentage >= QUOTA_WARNING_80,
-                isWarning95: percentage >= QUOTA_WARNING_95,
-                isExceeded: percentage >= 1,
-            });
-        } catch (error) {
-            console.error("Failed to refresh local quota status:", error);
-        }
-    }, []);
-
-    const refreshCloudQuotaStatus = useCallback(async () => {
-        if (!cloudAdapter || !isAuthenticated) {
-            setCloudQuotaStatus(null);
-            return;
-        }
-
-        try {
-            const status = await getCloudQuotaStatus(cloudAdapter);
-            setCloudQuotaStatus(status);
-        } catch (error) {
-            console.error("Failed to refresh cloud quota status:", error);
-        }
-    }, [cloudAdapter, isAuthenticated]);
-
-    const refreshCloudStorageUsage = useCallback(async () => {
-        if (!cloudAdapter || !isAuthenticated) {
-            setCloudStorageUsage(null);
-            return;
-        }
-
-        try {
-            const usage = await cloudAdapter.getStorageUsage();
-            setCloudStorageUsage(usage);
-        } catch (error) {
-            console.error("Failed to refresh cloud storage usage:", error);
-        }
-    }, [cloudAdapter, isAuthenticated]);
-
-    const refreshQuotaStatus = useCallback(async () => {
-        await Promise.all([
-            refreshLocalQuotaStatus(),
-            refreshCloudQuotaStatus(),
-            refreshCloudStorageUsage(),
-        ]);
-    }, [
-        refreshLocalQuotaStatus,
-        refreshCloudQuotaStatus,
-        refreshCloudStorageUsage,
-    ]);
-
-    const clearCloudImages = useCallback(async () => {
-        await clearCloudImagesAndRefresh({
-            convexClient,
-            clearAttachmentCaches: clearCloudAttachmentCaches,
-            onCloudImagesCleared,
-            refreshQuotaStatus,
-        });
-    }, [convexClient, onCloudImagesCleared, refreshQuotaStatus]);
-
-    useEffect(() => {
-        queueMicrotask(() => {
-            void refreshQuotaStatus();
-        });
-    }, [refreshQuotaStatus]);
-
-    return {
-        localQuotaStatus,
-        cloudQuotaStatus,
-        cloudStorageUsage,
-        refreshQuotaStatus,
-        clearCloudImages,
-    };
 }
 
 function SyncProviderBase({
@@ -452,18 +216,14 @@ function SyncProviderBase({
 
         const storedState = storage.getSyncState();
         const storedMetadata = storage.getSyncMetadata();
+        const resolved = resolveStoredSyncState({
+            isConvexAvailable,
+            storedState,
+            storedMetadata,
+        });
 
-        // If Convex is not available, force local-only mode
-        if (!isConvexAvailable) {
-            setSyncStateInternal("local-only");
-            setSyncMetadataInternal({
-                ...storedMetadata,
-                syncState: "local-only",
-            });
-        } else {
-            setSyncStateInternal(storedState);
-            setSyncMetadataInternal(storedMetadata);
-        }
+        setSyncStateInternal(resolved.syncState);
+        setSyncMetadataInternal(resolved.syncMetadata);
 
         setIsStorageHydrated(true);
     }, [isConvexAvailable]);
@@ -473,9 +233,12 @@ function SyncProviderBase({
         setSyncStateInternal(newState);
         storage.setSyncState(newState);
 
-        const updatedMetadata = storage.updateSyncMetadata({
-            syncState: newState,
-        });
+        const updatedMetadata = storage.updateSyncMetadata(
+            applySyncStateChange({
+                previousMetadata: storage.getSyncMetadata(),
+                nextState: newState,
+            }),
+        );
         setSyncMetadataInternal(updatedMetadata);
     }, []);
 
@@ -484,7 +247,13 @@ function SyncProviderBase({
         if (typeof window === "undefined") return;
         if (isAuthLoading) return;
 
-        if (!isAuthenticated && syncState === "cloud-enabled") {
+        if (
+            shouldDisableCloudOnSignOut({
+                isAuthLoading,
+                isAuthenticated,
+                syncState,
+            })
+        ) {
             updateSyncState("cloud-disabled");
         }
     }, [isAuthLoading, isAuthenticated, syncState, updateSyncState]);
@@ -522,27 +291,17 @@ function SyncProviderBase({
         });
 
         try {
-            if (!initialSync) {
-                if (!convexUserId) {
-                    throw new Error("User not loaded");
-                }
-
-                await convexClient.mutation(api.users.resetCloudData, {});
-                await migrateLocalToCloud(cloudAdapter, setMigrationProgress);
-                await migrateSkillsToCloud(convexClient, convexUserId);
-
-                // Migrate API key to cloud (if user has one locally)
-                const localApiKey = getApiKey();
-                if (localApiKey) {
-                    await convexClient.mutation(api.apiKey.setApiKey, {
-                        apiKey: localApiKey,
-                    });
-                }
-
-                await convexClient.mutation(api.users.setInitialSync, {
-                    initialSync: true,
-                });
+            if (!convexUserId) {
+                throw new Error("User not loaded");
             }
+
+            await runEnableCloudSyncMigration({
+                initialSync,
+                convexClient,
+                convexUserId,
+                cloudAdapter,
+                setMigrationProgress,
+            });
 
             updateSyncState("cloud-enabled");
             storage.updateSyncMetadata({
@@ -623,16 +382,12 @@ function SyncProviderBase({
             }
 
             try {
-                const cloudApiKey = await convexClient.action(
-                    api.apiKey.getDecryptedApiKey,
-                    {},
-                );
-                await cloneCloudToLocal(
+                await runCloneCloudToLocal({
+                    convexClient,
                     cloudAdapter,
-                    setCloneProgress,
                     options,
-                    cloudApiKey,
-                );
+                    setCloneProgress,
+                });
                 await refreshQuotaStatus();
             } catch (error) {
                 console.error("Clone to local failed:", error);

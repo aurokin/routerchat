@@ -1,5 +1,6 @@
 import { describe, expect, test } from "vitest";
 import {
+    getCloudTutorialSelectionAction,
     getNoLocalData,
     getTutorialVisibilityState,
 } from "@/components/tutorial/FirstRunTutorialModal";
@@ -90,5 +91,21 @@ describe("getTutorialVisibilityState", () => {
 
         expect(state.isVisible).toBe(false);
         expect(state.shouldSetStartStep).toBe(false);
+    });
+});
+
+describe("getCloudTutorialSelectionAction", () => {
+    test("sets auto-enable reason for already signed-in users", () => {
+        expect(getCloudTutorialSelectionAction(true, false)).toEqual({
+            shouldSetAutoEnableReason: true,
+            shouldSignIn: false,
+        });
+    });
+
+    test("sets auto-enable reason and starts sign-in for signed-out users", () => {
+        expect(getCloudTutorialSelectionAction(false, true)).toEqual({
+            shouldSetAutoEnableReason: true,
+            shouldSignIn: true,
+        });
     });
 });

@@ -84,6 +84,10 @@ export interface ConvexMessageLike {
     thinkingLevel?: string | null;
     searchLevel?: string | null;
     attachmentIds?: string[] | null;
+    toolCalls?: Message["toolCalls"];
+    toolCallId?: string;
+    toolName?: string;
+    toolExecutions?: Message["toolExecutions"];
     createdAt: number;
 }
 
@@ -115,6 +119,10 @@ export function mapConvexMessageToLocal(
         thinkingLevel: toThinkingLevel(msg.thinkingLevel),
         searchLevel: toSearchLevel(msg.searchLevel),
         attachmentIds: msg.attachmentIds ?? undefined,
+        toolCalls: msg.toolCalls,
+        toolCallId: msg.toolCallId,
+        toolName: msg.toolName,
+        toolExecutions: msg.toolExecutions,
         createdAt: msg.createdAt,
     };
 }

@@ -13,6 +13,7 @@ import type {
     ThinkingLevel as SharedThinkingLevel,
     SearchLevel as SharedSearchLevel,
     ProviderSortPreference as SharedProviderSortPreference,
+    PdfParserEnginePreference as SharedPdfParserEnginePreference,
 } from "@shared/core/types";
 
 export type { Skill };
@@ -27,6 +28,7 @@ export type ThinkingLevel = SharedThinkingLevel;
 export type SearchLevel = SharedSearchLevel;
 
 export type ProviderSortPreference = SharedProviderSortPreference;
+export type PdfParserEnginePreference = SharedPdfParserEnginePreference;
 
 export interface Message extends SharedMessage {
     contextContent: string;
@@ -59,9 +61,27 @@ export interface OpenRouterModel {
     name: string;
     provider: string;
     supportedParameters?: SupportedParameter[];
+    pricing?: {
+        prompt?: string;
+        completion?: string;
+        image?: string;
+        request?: string;
+    };
+    contextLength?: number;
+    topProviderContextLength?: number;
+    inputModalities?: string[];
+    description?: string;
+    expirationDate?: string;
+    knowledgeCutoff?: string;
 }
 
 export function modelSupportsSearch(
+    model: OpenRouterModel | undefined,
+): boolean {
+    return modelSupportsTools(model);
+}
+
+export function modelSupportsTools(
     model: OpenRouterModel | undefined,
 ): boolean {
     return (
@@ -84,4 +104,10 @@ export function modelSupportsVision(
     return (
         model?.supportedParameters?.includes(SupportedParameter.Vision) ?? false
     );
+}
+
+export function modelSupportsAudio(
+    model: OpenRouterModel | undefined,
+): boolean {
+    return model?.inputModalities?.includes("audio") ?? false;
 }

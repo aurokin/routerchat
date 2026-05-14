@@ -25,6 +25,7 @@ describe("summarizeUsage", () => {
             completionTokens: 0,
             totalTokens: 0,
             cachedTokens: 0,
+            webSearchRequests: 0,
             cost: undefined,
             messageCount: 0,
         });
@@ -123,6 +124,30 @@ describe("summarizeUsage", () => {
             ),
         ]);
         expect(summary.cachedTokens).toBe(90);
+    });
+
+    it("aggregates web search requests", () => {
+        const summary = summarizeUsage([
+            makeMessage(
+                {
+                    promptTokens: 100,
+                    completionTokens: 50,
+                    totalTokens: 150,
+                    webSearchRequests: 1,
+                },
+                "1",
+            ),
+            makeMessage(
+                {
+                    promptTokens: 80,
+                    completionTokens: 40,
+                    totalTokens: 120,
+                    webSearchRequests: 2,
+                },
+                "2",
+            ),
+        ]);
+        expect(summary.webSearchRequests).toBe(3);
     });
 
     it("ignores messages without usage", () => {

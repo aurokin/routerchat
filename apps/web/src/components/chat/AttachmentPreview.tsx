@@ -1,6 +1,6 @@
 "use client";
 
-import { X, Loader2 } from "lucide-react";
+import { FileText, X, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { PendingAttachment } from "@/lib/types";
 
@@ -45,11 +45,20 @@ export function AttachmentPreview({
                     key={attachment.id}
                     className="relative group w-16 h-16 bg-muted/30 border border-border/50 overflow-hidden"
                 >
-                    <img
-                        src={attachment.preview}
-                        alt="Attachment preview"
-                        className="w-full h-full object-cover"
-                    />
+                    {attachment.type === "image" ? (
+                        <img
+                            src={attachment.preview}
+                            alt="Attachment preview"
+                            className="w-full h-full object-cover"
+                        />
+                    ) : (
+                        <div className="w-full h-full flex flex-col items-center justify-center gap-1 px-1 text-muted-foreground">
+                            <FileText size={22} />
+                            <span className="text-[9px] uppercase tracking-wider">
+                                PDF
+                            </span>
+                        </div>
+                    )}
                     {!disabled && (
                         <button
                             type="button"
@@ -65,9 +74,11 @@ export function AttachmentPreview({
                         </button>
                     )}
                     <span className="absolute bottom-0 left-0 right-0 text-[10px] text-center text-muted-foreground bg-background/80 py-0.5 truncate px-1">
-                        {attachment.url
-                            ? "URL"
-                            : formatFileSize(attachment.size)}
+                        {attachment.filename
+                            ? attachment.filename
+                            : attachment.url
+                              ? "URL"
+                              : formatFileSize(attachment.size)}
                     </span>
                 </div>
             ))}

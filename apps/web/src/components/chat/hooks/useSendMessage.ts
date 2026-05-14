@@ -9,26 +9,38 @@ import {
     type MessageContent,
 } from "@/lib/openrouter";
 import {
+    modelSupportsTools,
     modelSupportsReasoning,
     modelSupportsSearch,
     type Attachment,
     type ChatSession,
-    type ImageMimeType,
     type Message,
     type PendingAttachment,
+    type PdfParserEnginePreference,
     type ProviderSortPreference,
     type SearchLevel,
     type ThinkingLevel,
 } from "@/lib/types";
 import type { OpenRouterModel } from "@shared/core/models";
-import type { OpenRouterMessage } from "@shared/core/openrouter";
+import type {
+    OpenRouterMessage,
+    OpenRouterPlugin,
+    ToolCall,
+} from "@shared/core/openrouter";
 import type { Skill } from "@shared/core/skills";
 import { trimTrailingEmptyLines } from "@shared/core/text";
+import {
+    executeLocalToolCall,
+    getFunctionToolsForIds,
+    isKnownLocalTool,
+} from "@shared/core/tools";
 import { generateUUID } from "@/lib/utils";
 import { ConvexStorageAdapter } from "@/lib/sync/convex-adapter";
 import type { StorageAdapter } from "@/lib/sync/storage-adapter";
 import type { ChatError } from "../ChatErrorBanner";
 import type { StreamingMessageState } from "./useStreamingMessage";
+
+const MAX_TOOL_ROUNDS = 3;
 
 interface NewMessageInput {
     id?: string;
@@ -40,6 +52,11 @@ interface NewMessageInput {
     thinkingLevel: ThinkingLevel;
     searchLevel: SearchLevel;
     attachmentIds?: string[];
+    toolCalls?: Message["toolCalls"];
+    toolCallId?: string;
+    toolName?: string;
+    toolExecutions?: Message["toolExecutions"];
+    createdAt?: number;
     chatId: string;
 }
 
@@ -51,7 +68,9 @@ export interface UseSendMessageParams {
     models: OpenRouterModel[];
     storageAdapter: StorageAdapter;
     promptCacheEnabled: boolean;
+    structuredOutputJson: boolean;
     providerSort: ProviderSortPreference;
+    pdfParserEngine: PdfParserEnginePreference;
     /** Returns the freshest skill snapshot, including keybinding-driven changes. */
     getLastSkillChange: () => { skill: Skill | null; mode: "auto" | "manual" };
     addMessage: (msg: NewMessageInput) => Promise<Message>;
@@ -110,6 +129,27 @@ function getChatTitleUpdate(
 
 export { getChatTitleUpdate };
 
+function buildToolResultContent(params: {
+    call: ToolCall;
+    result?: string;
+    error?: string;
+}): string {
+    const { call, result, error } = params;
+    if (error) {
+        return JSON.stringify({
+            ok: false,
+            tool: call.function.name,
+            error,
+        });
+    }
+
+    return JSON.stringify({
+        ok: true,
+        tool: call.function.name,
+        result: result ?? "",
+    });
+}
+
 export function useSendMessage(
     params: UseSendMessageParams,
 ): UseSendMessageReturn {
@@ -121,7 +161,9 @@ export function useSendMessage(
         models,
         storageAdapter,
         promptCacheEnabled,
+        structuredOutputJson,
         providerSort,
+        pdfParserEngine,
         getLastSkillChange,
         addMessage,
         updateMessage,
@@ -170,6 +212,14 @@ export function useSendMessage(
             let assistantMessageId: string | null = null;
             let fullResponse = "";
             let fullThinking = "";
+            let lastPersistedMessageAt = Date.now();
+            const nextMessageTimestamp = () => {
+                lastPersistedMessageAt = Math.max(
+                    Date.now(),
+                    lastPersistedMessageAt + 1,
+                );
+                return lastPersistedMessageAt;
+            };
 
             try {
                 const currentModel = models.find(
@@ -177,6 +227,7 @@ export function useSendMessage(
                 );
                 const supportsReasoning = modelSupportsReasoning(currentModel);
                 const supportsSearch = modelSupportsSearch(currentModel);
+                const supportsTools = modelSupportsTools(currentModel);
 
                 const effectiveThinking = supportsReasoning
                     ? chatSnapshot.thinking
@@ -204,12 +255,13 @@ export function useSendMessage(
                     ? pendingAttachments.map((pa) => ({
                           id: generateUUID(),
                           messageId,
-                          type: "image" as const,
-                          mimeType: pa.mimeType as ImageMimeType,
+                          type: pa.type,
+                          mimeType: pa.mimeType,
                           data: pa.data,
                           width: pa.width,
                           height: pa.height,
                           size: pa.size,
+                          ...(pa.filename ? { filename: pa.filename } : {}),
                           ...(pa.url ? { url: pa.url } : {}),
                           createdAt: Date.now(),
                       }))
@@ -288,6 +340,7 @@ export function useSendMessage(
                 }
 
                 const currentMessages: OpenRouterMessage[] = [];
+                let hasPdfAttachment = false;
 
                 for (const m of messagesSnapshot) {
                     // When caching is on we send the skill prompt as a cached
@@ -305,6 +358,16 @@ export function useSendMessage(
                         const msgAttachments =
                             await storageAdapter.getAttachmentsByMessage(m.id);
                         if (msgAttachments.length > 0) {
+                            if (
+                                msgAttachments.some(
+                                    (attachment) =>
+                                        attachment.type === "file" &&
+                                        attachment.mimeType ===
+                                            "application/pdf",
+                                )
+                            ) {
+                                hasPdfAttachment = true;
+                            }
                             messageContent = buildMessageContent(
                                 baseContent,
                                 msgAttachments,
@@ -325,6 +388,17 @@ export function useSendMessage(
                     ) {
                         outgoing.reasoning_details = m.reasoningDetails;
                     }
+                    if (
+                        m.role === "assistant" &&
+                        m.toolCalls &&
+                        m.toolCalls.length > 0
+                    ) {
+                        outgoing.tool_calls = m.toolCalls;
+                    }
+                    if (m.role === "tool") {
+                        if (m.toolCallId) outgoing.tool_call_id = m.toolCallId;
+                        if (m.toolName) outgoing.name = m.toolName;
+                    }
                     currentMessages.push(outgoing);
                 }
 
@@ -332,15 +406,35 @@ export function useSendMessage(
                     pendingAttachments?.map((pa) => ({
                         id: generateUUID(),
                         messageId: "",
-                        type: "image" as const,
-                        mimeType: pa.mimeType as ImageMimeType,
+                        type: pa.type,
+                        mimeType: pa.mimeType,
                         data: pa.data,
                         width: pa.width,
                         height: pa.height,
                         size: pa.size,
+                        ...(pa.filename ? { filename: pa.filename } : {}),
                         ...(pa.url ? { url: pa.url } : {}),
                         createdAt: Date.now(),
                     }));
+                if (
+                    newUserAttachments?.some(
+                        (attachment) =>
+                            attachment.type === "file" &&
+                            attachment.mimeType === "application/pdf",
+                    )
+                ) {
+                    hasPdfAttachment = true;
+                }
+
+                const plugins: OpenRouterPlugin[] | undefined =
+                    hasPdfAttachment && pdfParserEngine !== "auto"
+                        ? [
+                              {
+                                  id: "file-parser",
+                                  pdf: { engine: pdfParserEngine },
+                              },
+                          ]
+                        : undefined;
 
                 const newUserContent =
                     promptCacheEnabled && skillForMessage
@@ -354,7 +448,14 @@ export function useSendMessage(
                     ),
                 });
 
-                const assistantMessage = await addMessage({
+                const cachedSystemPrefix = promptCacheEnabled
+                    ? buildCachedSystemPrefix(skillForMessage)
+                    : undefined;
+                const functionTools = supportsTools
+                    ? getFunctionToolsForIds(skillForMessage?.toolIds)
+                    : [];
+
+                let currentAssistantMessage = await addMessage({
                     role: "assistant",
                     content: "",
                     contextContent: "",
@@ -362,60 +463,209 @@ export function useSendMessage(
                     modelId: chatSnapshot.modelId,
                     thinkingLevel: effectiveThinking,
                     searchLevel: effectiveSearchLevel,
+                    createdAt: nextMessageTimestamp(),
                     chatId: chatSnapshot.id,
                 });
-                assistantMessageId = assistantMessage.id;
+                assistantMessageId = currentAssistantMessage.id;
                 queueStreamingMessageUpdate({
-                    id: assistantMessage.id,
+                    id: currentAssistantMessage.id,
                     content: "",
                     thinking: undefined,
                 });
 
-                const cachedSystemPrefix = promptCacheEnabled
-                    ? buildCachedSystemPrefix(skillForMessage)
-                    : undefined;
+                for (let round = 0; round <= MAX_TOOL_ROUNDS; round += 1) {
+                    fullResponse = "";
+                    fullThinking = "";
 
-                const response = await sendMessage(
-                    apiKey,
-                    currentMessages,
-                    chatSnapshot,
-                    currentModel,
-                    (chunk, thinking) => {
-                        if (thinking !== undefined) {
-                            fullThinking += thinking;
-                        } else {
-                            fullResponse += chunk;
+                    const response = await sendMessage(
+                        apiKey,
+                        currentMessages,
+                        chatSnapshot,
+                        currentModel,
+                        (chunk, thinking) => {
+                            if (thinking !== undefined) {
+                                fullThinking += thinking;
+                            } else {
+                                fullResponse += chunk;
+                            }
+
+                            queueStreamingMessageUpdate({
+                                id: currentAssistantMessage.id,
+                                content: fullResponse,
+                                thinking: fullThinking || undefined,
+                            });
+                        },
+                        {
+                            cacheControl: promptCacheEnabled,
+                            systemPrefix: cachedSystemPrefix,
+                            responseFormat: structuredOutputJson
+                                ? { type: "json_object" }
+                                : undefined,
+                            providerSort:
+                                providerSort === "default"
+                                    ? undefined
+                                    : providerSort,
+                            plugins,
+                            functionTools,
+                            toolChoice:
+                                functionTools.length > 0 ? "auto" : undefined,
+                            parallelToolCalls:
+                                functionTools.length > 0 ? true : undefined,
+                        },
+                    );
+
+                    const trimmedResponse =
+                        trimTrailingEmptyLines(fullResponse) ?? "";
+                    const trimmedThinking =
+                        trimTrailingEmptyLines(fullThinking);
+                    const usage = toMessageUsage(response.usage) ?? undefined;
+                    const choice = response.choices[0];
+                    const reasoningDetails = choice?.message.reasoningDetails;
+                    const toolCalls = choice?.message.tool_calls ?? [];
+
+                    if (
+                        choice?.finish_reason === "tool_calls" &&
+                        toolCalls.length > 0
+                    ) {
+                        const executions = toolCalls.map((call) => ({
+                            id: call.id,
+                            name: call.function.name,
+                            arguments: call.function.arguments,
+                            status: "pending" as const,
+                        }));
+
+                        await updateMessage(currentAssistantMessage.id, {
+                            content: trimmedResponse,
+                            contextContent: trimmedResponse,
+                            thinking: trimmedThinking || undefined,
+                            usage,
+                            reasoningDetails,
+                            toolCalls,
+                            toolExecutions: executions,
+                        });
+
+                        currentMessages.push({
+                            role: "assistant",
+                            content: trimmedResponse,
+                            reasoning_details: reasoningDetails,
+                            tool_calls: toolCalls,
+                        });
+
+                        const completedExecutions = await Promise.all(
+                            toolCalls.map(async (call) => {
+                                const base = {
+                                    id: call.id,
+                                    name: call.function.name,
+                                    arguments: call.function.arguments,
+                                };
+
+                                if (!isKnownLocalTool(call.function.name)) {
+                                    const error = `Unknown local tool: ${call.function.name}`;
+                                    return {
+                                        ...base,
+                                        status: "error" as const,
+                                        error,
+                                        content: buildToolResultContent({
+                                            call,
+                                            error,
+                                        }),
+                                    };
+                                }
+
+                                try {
+                                    const result =
+                                        await executeLocalToolCall(call);
+                                    return {
+                                        ...base,
+                                        status: "success" as const,
+                                        result,
+                                        content: buildToolResultContent({
+                                            call,
+                                            result,
+                                        }),
+                                    };
+                                } catch (toolError) {
+                                    const error =
+                                        toolError instanceof Error
+                                            ? toolError.message
+                                            : "Tool execution failed";
+                                    return {
+                                        ...base,
+                                        status: "error" as const,
+                                        error,
+                                        content: buildToolResultContent({
+                                            call,
+                                            error,
+                                        }),
+                                    };
+                                }
+                            }),
+                        );
+
+                        await updateMessage(currentAssistantMessage.id, {
+                            toolExecutions: completedExecutions.map(
+                                ({ content: _content, ...execution }) =>
+                                    execution,
+                            ),
+                        });
+
+                        for (const execution of completedExecutions) {
+                            await addMessage({
+                                role: "tool",
+                                content: execution.content,
+                                contextContent: execution.content,
+                                skill: null,
+                                modelId: chatSnapshot.modelId,
+                                thinkingLevel: effectiveThinking,
+                                searchLevel: effectiveSearchLevel,
+                                toolCallId: execution.id,
+                                toolName: execution.name,
+                                createdAt: nextMessageTimestamp(),
+                                chatId: chatSnapshot.id,
+                            });
+                            currentMessages.push({
+                                role: "tool",
+                                content: execution.content,
+                                tool_call_id: execution.id,
+                                name: execution.name,
+                            });
                         }
 
-                        queueStreamingMessageUpdate({
-                            id: assistantMessage.id,
-                            content: fullResponse,
-                            thinking: fullThinking || undefined,
-                        });
-                    },
-                    {
-                        cacheControl: promptCacheEnabled,
-                        systemPrefix: cachedSystemPrefix,
-                        providerSort:
-                            providerSort === "default"
-                                ? undefined
-                                : providerSort,
-                    },
-                );
+                        if (round === MAX_TOOL_ROUNDS) {
+                            throw new Error(
+                                "Tool call limit reached before the assistant produced a final response.",
+                            );
+                        }
 
-                const trimmedResponse =
-                    trimTrailingEmptyLines(fullResponse) ?? "";
-                const trimmedThinking = trimTrailingEmptyLines(fullThinking);
-                const usage = toMessageUsage(response.usage) ?? undefined;
-                const reasoningDetails =
-                    response.choices[0]?.message.reasoningDetails;
-                await updateMessage(assistantMessage.id, {
-                    content: trimmedResponse,
-                    contextContent: trimmedResponse,
-                    thinking: trimmedThinking || undefined,
-                    usage,
-                    reasoningDetails,
-                });
+                        currentAssistantMessage = await addMessage({
+                            role: "assistant",
+                            content: "",
+                            contextContent: "",
+                            skill: null,
+                            modelId: chatSnapshot.modelId,
+                            thinkingLevel: effectiveThinking,
+                            searchLevel: effectiveSearchLevel,
+                            createdAt: nextMessageTimestamp(),
+                            chatId: chatSnapshot.id,
+                        });
+                        assistantMessageId = currentAssistantMessage.id;
+                        queueStreamingMessageUpdate({
+                            id: currentAssistantMessage.id,
+                            content: "",
+                            thinking: undefined,
+                        });
+                        continue;
+                    }
+
+                    await updateMessage(currentAssistantMessage.id, {
+                        content: trimmedResponse,
+                        contextContent: trimmedResponse,
+                        thinking: trimmedThinking || undefined,
+                        usage,
+                        reasoningDetails,
+                    });
+                    break;
+                }
             } catch (err) {
                 if (assistantMessageId && (fullResponse || fullThinking)) {
                     const partialResponse =
@@ -471,12 +721,14 @@ export function useSendMessage(
             models,
             promptCacheEnabled,
             providerSort,
+            pdfParserEngine,
             queueStreamingMessageUpdate,
             selectedSkill,
             setDefaultModel,
             setDefaultSearchLevel,
             setDefaultThinking,
             storageAdapter,
+            structuredOutputJson,
             updateChat,
             updateMessage,
             updateSelectedSkill,

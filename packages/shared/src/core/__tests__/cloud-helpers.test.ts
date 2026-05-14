@@ -144,6 +144,10 @@ describe("cloud-helpers", () => {
             thinkingLevel: "none",
             searchLevel: "none",
             attachmentIds: undefined,
+            toolCalls: undefined,
+            toolCallId: undefined,
+            toolName: undefined,
+            toolExecutions: undefined,
             createdAt: 5,
         };
 
@@ -171,6 +175,27 @@ describe("cloud-helpers", () => {
                 thinkingLevel: "high",
                 searchLevel: "low",
                 attachmentIds: ["att-1"],
+                toolCalls: [
+                    {
+                        id: "call-1",
+                        type: "function",
+                        function: {
+                            name: "calculator",
+                            arguments: '{"expression":"1+1"}',
+                        },
+                    },
+                ],
+                toolCallId: "call-1",
+                toolName: "calculator",
+                toolExecutions: [
+                    {
+                        id: "call-1",
+                        name: "calculator",
+                        arguments: '{"expression":"1+1"}',
+                        status: "success",
+                        result: "2",
+                    },
+                ],
                 createdAt: 7,
             },
             "local-chat",
@@ -182,5 +207,26 @@ describe("cloud-helpers", () => {
         expect(message.thinkingLevel).toBe("high");
         expect(message.searchLevel).toBe("low");
         expect(message.attachmentIds).toEqual(["att-1"]);
+        expect(message.toolCalls).toEqual([
+            {
+                id: "call-1",
+                type: "function",
+                function: {
+                    name: "calculator",
+                    arguments: '{"expression":"1+1"}',
+                },
+            },
+        ]);
+        expect(message.toolCallId).toBe("call-1");
+        expect(message.toolName).toBe("calculator");
+        expect(message.toolExecutions).toEqual([
+            {
+                id: "call-1",
+                name: "calculator",
+                arguments: '{"expression":"1+1"}',
+                status: "success",
+                result: "2",
+            },
+        ]);
     });
 });

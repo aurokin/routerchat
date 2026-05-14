@@ -4,10 +4,8 @@ import { mutation, query } from "./_generated/server";
 import { isOwner, requireAuthUserId, requireUserMatches } from "./lib/authz";
 import { assertMaxLen, LIMITS } from "./lib/limits";
 import { clampPaginationOpts } from "./lib/pagination";
-import {
-    applyCloudUsageDelta,
-    ensureCloudUsageCounters,
-} from "./lib/cloud_usage";
+import { skillUsage } from "./lib/usage_aggregates";
+import { limitContentCreation } from "./lib/rate_limits";
 
 const skillDocValidator = v.object({
     _id: v.id("skills"),
@@ -17,6 +15,7 @@ const skillDocValidator = v.object({
     name: v.string(),
     description: v.string(),
     prompt: v.string(),
+    toolIds: v.optional(v.array(v.string())),
     createdAt: v.number(),
 });
 
@@ -105,6 +104,7 @@ export const create = mutation({
         name: v.string(),
         description: v.string(),
         prompt: v.string(),
+        toolIds: v.optional(v.array(v.string())),
         createdAt: v.optional(v.number()),
     },
     returns: v.id("skills"),
@@ -121,14 +121,7 @@ export const create = mutation({
         );
         assertMaxLen(args.prompt, LIMITS.maxSkillPromptChars, "prompt");
 
-        const usage = await ensureCloudUsageCounters(ctx, authenticatedUserId);
-        if (usage.skillCount >= LIMITS.maxSkillsPerUser) {
-            throw new ConvexError({
-                code: "LIMIT_REACHED",
-                message: "Skill limit reached",
-                resource: "skills",
-            });
-        }
+        await limitContentCreation(ctx, "createSkill", authenticatedUserId);
 
         const now = Date.now();
         const skillId = await ctx.db.insert("skills", {
@@ -137,10 +130,12 @@ export const create = mutation({
             name: args.name,
             description: args.description,
             prompt: args.prompt,
+            toolIds: args.toolIds,
             createdAt: args.createdAt ?? now,
         });
 
-        await applyCloudUsageDelta(ctx, authenticatedUserId, { skillCount: 1 });
+        const skill = await ctx.db.get(skillId);
+        await skillUsage.insertIfDoesNotExist(ctx, skill!);
         return skillId;
     },
 });
@@ -152,12 +147,13 @@ export const update = mutation({
         name: v.optional(v.string()),
         description: v.optional(v.string()),
         prompt: v.optional(v.string()),
+        toolIds: v.optional(v.array(v.string())),
     },
     returns: v.null(),
     handler: async (ctx, args) => {
         const authenticatedUserId = await requireAuthUserId(ctx);
         const skill = await ctx.db.get(args.id);
-        if (!isOwner(skill, authenticatedUserId)) {
+        if (!skill || !isOwner(skill, authenticatedUserId)) {
             throw new ConvexError({
                 code: "NOT_FOUND",
                 message: "Skill not found",
@@ -189,7 +185,7 @@ export const remove = mutation({
     handler: async (ctx, args) => {
         const authenticatedUserId = await requireAuthUserId(ctx);
         const skill = await ctx.db.get(args.id);
-        if (!isOwner(skill, authenticatedUserId)) {
+        if (!skill || !isOwner(skill, authenticatedUserId)) {
             throw new ConvexError({
                 code: "NOT_FOUND",
                 message: "Skill not found",
@@ -198,9 +194,7 @@ export const remove = mutation({
         }
 
         await ctx.db.delete(args.id);
-        await applyCloudUsageDelta(ctx, authenticatedUserId, {
-            skillCount: -1,
-        });
+        await skillUsage.deleteIfExists(ctx, skill);
         return null;
     },
 });

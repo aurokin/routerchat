@@ -5,6 +5,7 @@ export interface UsageSummary {
     completionTokens: number;
     totalTokens: number;
     cachedTokens: number;
+    webSearchRequests: number;
     /** Sum of provider-reported costs. Undefined if no message reported a cost. */
     cost: number | undefined;
     /** Number of messages that contributed at least one field. */
@@ -22,6 +23,7 @@ export function summarizeUsage(messages: Message[]): UsageSummary {
     let completionTokens = 0;
     let totalTokens = 0;
     let cachedTokens = 0;
+    let webSearchRequests = 0;
     let cost: number | undefined;
     let messageCount = 0;
 
@@ -38,6 +40,9 @@ export function summarizeUsage(messages: Message[]): UsageSummary {
         if (typeof usage.cost === "number") {
             cost = (cost ?? 0) + usage.cost;
         }
+        if (typeof usage.webSearchRequests === "number") {
+            webSearchRequests += usage.webSearchRequests;
+        }
     }
 
     return {
@@ -45,6 +50,7 @@ export function summarizeUsage(messages: Message[]): UsageSummary {
         completionTokens,
         totalTokens,
         cachedTokens,
+        webSearchRequests,
         cost,
         messageCount,
     };

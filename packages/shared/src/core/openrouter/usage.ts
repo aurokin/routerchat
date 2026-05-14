@@ -17,13 +17,15 @@ export function toMessageUsage(
     const totalTokens = usage.total_tokens ?? promptTokens + completionTokens;
     const cost = typeof usage.cost === "number" ? usage.cost : undefined;
     const cachedTokens = usage.prompt_tokens_details?.cached_tokens;
+    const webSearchRequests = usage.server_tool_use?.web_search_requests;
 
     if (
         promptTokens === 0 &&
         completionTokens === 0 &&
         totalTokens === 0 &&
         cost === undefined &&
-        (cachedTokens === undefined || cachedTokens === 0)
+        (cachedTokens === undefined || cachedTokens === 0) &&
+        (webSearchRequests === undefined || webSearchRequests === 0)
     ) {
         return null;
     }
@@ -35,6 +37,9 @@ export function toMessageUsage(
         ...(cost !== undefined ? { cost } : {}),
         ...(typeof cachedTokens === "number" && cachedTokens > 0
             ? { cachedTokens }
+            : {}),
+        ...(typeof webSearchRequests === "number" && webSearchRequests > 0
+            ? { webSearchRequests }
             : {}),
     };
 }

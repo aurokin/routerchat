@@ -8,7 +8,13 @@ import React, {
     useCallback,
     useRef,
 } from "react";
-import { useStorageAdapter } from "@/contexts/SyncContext";
+import { useStorageAdapter, useSync } from "@/contexts/SyncContext";
+import { useMutation, useQuery } from "convex/react";
+import { api } from "@convex/_generated/api";
+import {
+    useIsConvexAvailable,
+    useSafeConvexAuth,
+} from "@/contexts/ConvexProvider";
 import type {
     UserSettings,
     OpenRouterModel,
@@ -16,6 +22,7 @@ import type {
     SearchLevel,
     Skill,
     ProviderSortPreference,
+    PdfParserEnginePreference,
 } from "@/lib/types";
 import { APP_DEFAULT_MODEL } from "@shared/core/models";
 import { v4 as uuid } from "uuid";
@@ -30,7 +37,9 @@ interface SettingsContextType extends UserSettings {
     setDefaultThinking: (value: ThinkingLevel) => void;
     setDefaultSearchLevel: (level: SearchLevel) => void;
     setPromptCacheEnabled: (enabled: boolean) => void;
+    setStructuredOutputJson: (enabled: boolean) => void;
     setProviderSort: (value: ProviderSortPreference) => void;
+    setPdfParserEngine: (value: PdfParserEnginePreference) => void;
     setTheme: (theme: UserSettings["theme"]) => void;
     toggleFavoriteModel: (modelId: string) => void;
     models: OpenRouterModel[];
@@ -59,6 +68,8 @@ const defaultSettings: UserSettings = {
     favoriteModels: [],
     promptCacheEnabled: false,
     providerSort: "default",
+    structuredOutputJson: false,
+    pdfParserEngine: "auto",
 };
 
 const SettingsContext = createContext<SettingsContextType | null>(null);
@@ -96,6 +107,20 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
     );
     const refreshPromiseRef = useRef<Promise<void> | null>(null);
     const storageAdapter = useStorageAdapter();
+    const { syncState } = useSync();
+    const isConvexAvailable = useIsConvexAvailable();
+    const { isAuthenticated } = useSafeConvexAuth();
+    const isCloudSettingsEnabled =
+        isConvexAvailable && isAuthenticated && syncState === "cloud-enabled";
+    const cloudUserId = useQuery(
+        api.users.getCurrentUserId,
+        isCloudSettingsEnabled ? {} : "skip",
+    );
+    const cloudUser = useQuery(
+        api.users.get,
+        cloudUserId ? { id: cloudUserId } : "skip",
+    );
+    const setCloudProviderSort = useMutation(api.users.setProviderSort);
 
     // Use the useApiKey hook for cloud-synced API key management
     const {
@@ -148,10 +173,35 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
             theme: storage.getTheme(),
             favoriteModels: storage.getFavoriteModels(),
             promptCacheEnabled: storage.getPromptCacheEnabled(),
+            structuredOutputJson: storage.getStructuredOutputJson(),
             providerSort: storage.getProviderSort(),
+            pdfParserEngine: storage.getPdfParserEngine(),
         }));
         setMounted(true);
     }, []);
+
+    useEffect(() => {
+        if (!mounted) return;
+        if (!isCloudSettingsEnabled) {
+            setSettings((prev) => ({
+                ...prev,
+                providerSort: storage.getProviderSort(),
+            }));
+            return;
+        }
+        if (!cloudUser) return;
+
+        const localProviderSort = storage.getProviderSort();
+        const nextProviderSort = cloudUser.providerSort ?? localProviderSort;
+        setSettings((prev) => ({
+            ...prev,
+            providerSort: nextProviderSort,
+        }));
+
+        if (!cloudUser.providerSort) {
+            void setCloudProviderSort({ providerSort: localProviderSort });
+        }
+    }, [cloudUser, isCloudSettingsEnabled, mounted, setCloudProviderSort]);
 
     // Sync API key from the useApiKey hook (handles cloud sync automatically)
     useEffect(() => {
@@ -239,9 +289,23 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
         setSettings((prev) => ({ ...prev, promptCacheEnabled: enabled }));
     };
 
+    const setStructuredOutputJson = (enabled: boolean) => {
+        storage.setStructuredOutputJson(enabled);
+        setSettings((prev) => ({ ...prev, structuredOutputJson: enabled }));
+    };
+
     const setProviderSort = (value: ProviderSortPreference) => {
-        storage.setProviderSort(value);
+        if (isCloudSettingsEnabled) {
+            void setCloudProviderSort({ providerSort: value });
+        } else {
+            storage.setProviderSort(value);
+        }
         setSettings((prev) => ({ ...prev, providerSort: value }));
+    };
+
+    const setPdfParserEngine = (value: PdfParserEnginePreference) => {
+        storage.setPdfParserEngine(value);
+        setSettings((prev) => ({ ...prev, pdfParserEngine: value }));
     };
 
     const setTheme = (theme: UserSettings["theme"]) => {
@@ -394,7 +458,9 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
                 setDefaultThinking,
                 setDefaultSearchLevel,
                 setPromptCacheEnabled,
+                setStructuredOutputJson,
                 setProviderSort,
+                setPdfParserEngine,
                 setTheme,
                 toggleFavoriteModel,
                 models,

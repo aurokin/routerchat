@@ -325,7 +325,7 @@ describe("openrouter.ts", () => {
             } as unknown as Response;
             fetchMock.mockImplementation(() => Promise.resolve(mockResponse));
 
-            const messages = [{ role: "user", content: "Hi" }];
+            const messages = [{ role: "user" as const, content: "Hi" }];
             const result = await sendMessage(
                 "api-key",
                 messages,

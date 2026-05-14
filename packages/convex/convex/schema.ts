@@ -14,6 +14,7 @@ const skillSnapshotValidator = v.object({
     name: v.string(),
     description: v.string(),
     prompt: v.string(),
+    toolIds: v.optional(v.array(v.string())),
     createdAt: v.number(),
 });
 
@@ -23,6 +24,7 @@ const messageUsageValidator = v.object({
     totalTokens: v.number(),
     cost: v.optional(v.number()),
     cachedTokens: v.optional(v.number()),
+    webSearchRequests: v.optional(v.number()),
 });
 
 // Mirrors `ReasoningDetailChunk` in packages/shared. Re-check upstream when
@@ -37,6 +39,31 @@ const reasoningDetailValidator = v.object({
     format: v.optional(v.string()),
     text: v.optional(v.string()),
     signature: v.optional(v.string()),
+});
+
+const toolCallValidator = v.object({
+    id: v.string(),
+    type: v.literal("function"),
+    function: v.object({
+        name: v.string(),
+        arguments: v.string(),
+    }),
+});
+
+const toolExecutionValidator = v.object({
+    id: v.string(),
+    name: v.string(),
+    arguments: v.string(),
+    result: v.optional(v.string()),
+    status: v.optional(
+        v.union(
+            v.literal("pending"),
+            v.literal("running"),
+            v.literal("success"),
+            v.literal("error"),
+        ),
+    ),
+    error: v.optional(v.string()),
 });
 
 export default defineSchema({
@@ -54,7 +81,32 @@ export default defineSchema({
         encryptedApiKey: v.optional(v.string()), // Base64 ciphertext
         apiKeyNonce: v.optional(v.string()), // Base64 IV/nonce
         apiKeyUpdatedAt: v.optional(v.number()), // For sync conflict resolution
-        // Cloud usage counters (anti-abuse + cheap usage queries)
+        providerSort: v.optional(
+            v.union(
+                v.literal("default"),
+                v.literal("price"),
+                v.literal("throughput"),
+                v.literal("latency"),
+            ),
+        ),
+        usageAggregatesBackfilledAt: v.optional(v.number()),
+        usageBackfillStage: v.optional(
+            v.union(
+                v.literal("chats"),
+                v.literal("messages"),
+                v.literal("skills"),
+                v.literal("attachments"),
+            ),
+        ),
+        usageBackfillCursor: v.optional(v.union(v.null(), v.string())),
+        usageBackfillStartedAt: v.optional(v.number()),
+        usageBackfilledChatCount: v.optional(v.number()),
+        usageBackfilledMessageCount: v.optional(v.number()),
+        usageBackfilledSkillCount: v.optional(v.number()),
+        usageBackfilledAttachmentCount: v.optional(v.number()),
+        usageBackfilledAttachmentBytes: v.optional(v.number()),
+        // Legacy denormalized counters. Keep these optional while existing
+        // deployments migrate to aggregate-backed usage accounting.
         cloudChatCount: v.optional(v.number()),
         cloudMessageCount: v.optional(v.number()),
         cloudSkillCount: v.optional(v.number()),
@@ -85,6 +137,7 @@ export default defineSchema({
             v.literal("user"),
             v.literal("assistant"),
             v.literal("system"),
+            v.literal("tool"),
         ),
         content: v.string(),
         contextContent: v.string(),
@@ -96,6 +149,10 @@ export default defineSchema({
         attachmentIds: v.optional(v.array(v.string())),
         usage: v.optional(messageUsageValidator),
         reasoningDetails: v.optional(v.array(reasoningDetailValidator)),
+        toolCalls: v.optional(v.array(toolCallValidator)),
+        toolCallId: v.optional(v.string()),
+        toolName: v.optional(v.string()),
+        toolExecutions: v.optional(v.array(toolExecutionValidator)),
         createdAt: v.number(),
     })
         .index("by_chat_created", ["chatId", "createdAt"])
@@ -107,6 +164,7 @@ export default defineSchema({
         name: v.string(),
         description: v.string(),
         prompt: v.string(),
+        toolIds: v.optional(v.array(v.string())),
         createdAt: v.number(),
     })
         .index("by_user", ["userId"])
@@ -115,9 +173,11 @@ export default defineSchema({
         userId: v.id("users"),
         messageId: v.id("messages"),
         localId: v.optional(v.string()),
-        type: v.literal("image"),
+        type: v.union(v.literal("image"), v.literal("file")),
         mimeType: v.string(),
-        storageId: v.id("_storage"),
+        storageId: v.optional(v.id("_storage")),
+        url: v.optional(v.string()),
+        filename: v.optional(v.string()),
         width: v.number(),
         height: v.number(),
         size: v.number(),
@@ -134,4 +194,37 @@ export default defineSchema({
         reason: v.optional(v.string()),
         accessedAt: v.number(),
     }).index("by_user_accessed", ["userId", "accessedAt"]),
+    deleteOperations: defineTable({
+        userId: v.id("users"),
+        kind: v.union(
+            v.literal("chat"),
+            v.literal("chatMessages"),
+            v.literal("message"),
+            v.literal("messageAttachments"),
+            v.literal("userData"),
+            v.literal("userAttachments"),
+        ),
+        status: v.union(
+            v.literal("queued"),
+            v.literal("running"),
+            v.literal("finished"),
+            v.literal("failed"),
+        ),
+        targetChatId: v.optional(v.id("chats")),
+        targetMessageId: v.optional(v.id("messages")),
+        workId: v.optional(v.string()),
+        cursor: v.optional(v.union(v.null(), v.string())),
+        deletedChats: v.number(),
+        deletedMessages: v.number(),
+        deletedAttachments: v.number(),
+        freedAttachmentBytes: v.number(),
+        error: v.optional(v.string()),
+        createdAt: v.number(),
+        updatedAt: v.number(),
+        finishedAt: v.optional(v.number()),
+    })
+        .index("by_user_status", ["userId", "status", "updatedAt"])
+        .index("by_user_kind", ["userId", "kind", "updatedAt"])
+        .index("by_chat", ["targetChatId"])
+        .index("by_message", ["targetMessageId"]),
 });

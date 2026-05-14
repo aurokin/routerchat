@@ -1,14 +1,16 @@
 import { ConvexError, v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { isOwner, requireAuthUserId, requireUserMatches } from "./lib/authz";
-import { drainBatches, safeStorageDelete } from "./lib/batch";
+import { enqueueDeleteOperation } from "./lib/delete_operations";
+import { safeStorageDelete } from "./lib/storage";
 import { assertMaxLen, LIMITS } from "./lib/limits";
 import {
-    applyCloudUsageDelta,
-    computeCloudAttachmentUsage,
-    ensureCloudUsageCounters,
-    readCloudUsageCountersFromUser,
-} from "./lib/cloud_usage";
+    deleteAttachmentUsage,
+    ensureCloudUsageBackfilled,
+    getCloudAttachmentStorageBytes,
+    getCloudUsage,
+    insertAttachmentUsage,
+} from "./lib/usage_aggregates";
 
 const ALLOWED_IMAGE_MIME_TYPES = new Set([
     "image/jpeg",
@@ -17,6 +19,7 @@ const ALLOWED_IMAGE_MIME_TYPES = new Set([
     "image/webp",
     "image/bmp",
 ]);
+const ALLOWED_FILE_MIME_TYPES = new Set(["application/pdf"]);
 
 const attachmentDocValidator = v.object({
     _id: v.id("attachments"),
@@ -24,9 +27,11 @@ const attachmentDocValidator = v.object({
     userId: v.id("users"),
     messageId: v.id("messages"),
     localId: v.optional(v.string()),
-    type: v.literal("image"),
+    type: v.union(v.literal("image"), v.literal("file")),
     mimeType: v.string(),
-    storageId: v.id("_storage"),
+    storageId: v.optional(v.id("_storage")),
+    url: v.optional(v.string()),
+    filename: v.optional(v.string()),
     width: v.number(),
     height: v.number(),
     size: v.number(),
@@ -135,9 +140,11 @@ export const create = mutation({
         userId: v.id("users"),
         messageId: v.id("messages"),
         localId: v.optional(v.string()),
-        type: v.literal("image"),
+        type: v.union(v.literal("image"), v.literal("file")),
         mimeType: v.string(),
-        storageId: v.id("_storage"),
+        storageId: v.optional(v.id("_storage")),
+        url: v.optional(v.string()),
+        filename: v.optional(v.string()),
         width: v.number(),
         height: v.number(),
         size: v.number(),
@@ -149,23 +156,15 @@ export const create = mutation({
         requireUserMatches(authenticatedUserId, args.userId);
         assertMaxLen(args.localId, LIMITS.maxLocalIdChars, "localId");
 
-        const uploaded = await ctx.storage.getMetadata(args.storageId);
-        if (!uploaded) {
-            throw new ConvexError({
-                code: "STORAGE_NOT_FOUND",
-                message: "Uploaded attachment was not found",
-            });
-        }
-
         const requestedMimeType = normalizeMimeType(args.mimeType);
-        const uploadedMimeType = normalizeMimeType(uploaded.contentType);
-        const uploadedSize = uploaded.size;
-
-        if (
-            !requestedMimeType ||
-            !ALLOWED_IMAGE_MIME_TYPES.has(requestedMimeType)
-        ) {
-            await safeStorageDelete(ctx, args.storageId);
+        const allowedMimeTypes =
+            args.type === "image"
+                ? ALLOWED_IMAGE_MIME_TYPES
+                : ALLOWED_FILE_MIME_TYPES;
+        if (!requestedMimeType || !allowedMimeTypes.has(requestedMimeType)) {
+            if (args.storageId) {
+                await safeStorageDelete(ctx, args.storageId);
+            }
             throw new ConvexError({
                 code: "ATTACHMENT_TYPE_UNSUPPORTED",
                 message: "Unsupported attachment type",
@@ -173,32 +172,58 @@ export const create = mutation({
             });
         }
 
-        if (!uploadedMimeType || uploadedMimeType !== requestedMimeType) {
-            await safeStorageDelete(ctx, args.storageId);
+        if (!args.storageId && !args.url) {
             throw new ConvexError({
-                code: "ATTACHMENT_TYPE_MISMATCH",
-                message: "Attachment type mismatch",
+                code: "ATTACHMENT_SOURCE_REQUIRED",
+                message: "Attachment requires a stored file or URL",
             });
         }
 
-        if (!Number.isFinite(uploadedSize) || uploadedSize <= 0) {
-            await safeStorageDelete(ctx, args.storageId);
+        let uploadedSize = args.size;
+        if (args.storageId) {
+            const uploaded = await ctx.storage.getMetadata(args.storageId);
+            if (!uploaded) {
+                throw new ConvexError({
+                    code: "STORAGE_NOT_FOUND",
+                    message: "Uploaded attachment was not found",
+                });
+            }
+
+            const uploadedMimeType = normalizeMimeType(uploaded.contentType);
+            uploadedSize = uploaded.size;
+
+            if (!uploadedMimeType || uploadedMimeType !== requestedMimeType) {
+                await safeStorageDelete(ctx, args.storageId);
+                throw new ConvexError({
+                    code: "ATTACHMENT_TYPE_MISMATCH",
+                    message: "Attachment type mismatch",
+                });
+            }
+
+            if (!Number.isFinite(uploadedSize) || uploadedSize <= 0) {
+                await safeStorageDelete(ctx, args.storageId);
+                throw new ConvexError({
+                    code: "ATTACHMENT_INVALID_METADATA",
+                    message: "Attachment metadata is invalid",
+                });
+            }
+
+            if (uploadedSize !== args.size) {
+                await safeStorageDelete(ctx, args.storageId);
+                throw new ConvexError({
+                    code: "ATTACHMENT_SIZE_MISMATCH",
+                    message: "Attachment size mismatch",
+                });
+            }
+        } else if (!Number.isFinite(uploadedSize) || uploadedSize < 0) {
             throw new ConvexError({
                 code: "ATTACHMENT_INVALID_METADATA",
                 message: "Attachment metadata is invalid",
             });
         }
 
-        if (uploadedSize !== args.size) {
-            await safeStorageDelete(ctx, args.storageId);
-            throw new ConvexError({
-                code: "ATTACHMENT_SIZE_MISMATCH",
-                message: "Attachment size mismatch",
-            });
-        }
-
         if (uploadedSize > LIMITS.maxAttachmentBytes) {
-            await safeStorageDelete(ctx, args.storageId);
+            if (args.storageId) await safeStorageDelete(ctx, args.storageId);
             throw new ConvexError({
                 code: "ATTACHMENT_TOO_LARGE",
                 message: "Attachment exceeds maximum size",
@@ -209,7 +234,7 @@ export const create = mutation({
 
         const message = await ctx.db.get(args.messageId);
         if (!isOwner(message, authenticatedUserId)) {
-            await safeStorageDelete(ctx, args.storageId);
+            if (args.storageId) await safeStorageDelete(ctx, args.storageId);
             throw new ConvexError({
                 code: "NOT_FOUND",
                 message: "Message not found",
@@ -222,7 +247,7 @@ export const create = mutation({
             .withIndex("by_message", (q) => q.eq("messageId", args.messageId))
             .take(LIMITS.maxAttachmentsPerMessage);
         if (existingAttachments.length >= LIMITS.maxAttachmentsPerMessage) {
-            await safeStorageDelete(ctx, args.storageId);
+            if (args.storageId) await safeStorageDelete(ctx, args.storageId);
             throw new ConvexError({
                 code: "LIMIT_REACHED",
                 message: "Attachment limit reached",
@@ -230,15 +255,20 @@ export const create = mutation({
             });
         }
 
-        const usage = await ensureCloudUsageCounters(ctx, authenticatedUserId);
+        await ensureCloudUsageBackfilled(ctx, authenticatedUserId);
+        const attachmentStorageBytes = await getCloudAttachmentStorageBytes(
+            ctx,
+            authenticatedUserId,
+        );
         if (
-            usage.attachmentBytes + uploadedSize >
-            LIMITS.maxTotalAttachmentBytesPerUser
+            args.storageId &&
+            attachmentStorageBytes + uploadedSize >
+                LIMITS.maxTotalAttachmentBytesPerUser
         ) {
-            await safeStorageDelete(ctx, args.storageId);
+            if (args.storageId) await safeStorageDelete(ctx, args.storageId);
             throw new ConvexError({
                 code: "STORAGE_LIMIT_REACHED",
-                message: "Cloud image storage limit reached",
+                message: "Cloud attachment storage limit reached",
             });
         }
 
@@ -252,16 +282,16 @@ export const create = mutation({
             type: args.type,
             mimeType: requestedMimeType,
             storageId: args.storageId,
+            url: args.url,
+            filename: args.filename,
             width: args.width,
             height: args.height,
             size: uploadedSize,
             createdAt: args.createdAt ?? now,
         });
 
-        await applyCloudUsageDelta(ctx, authenticatedUserId, {
-            attachmentCount: 1,
-            attachmentBytes: uploadedSize,
-        });
+        const attachment = await ctx.db.get(attachmentId);
+        await insertAttachmentUsage(ctx, attachment!);
 
         return attachmentId;
     },
@@ -284,13 +314,13 @@ export const remove = mutation({
 
         const countsTowardsUsage = !attachment.purgedAt;
 
-        await safeStorageDelete(ctx, attachment.storageId);
+        if (attachment.storageId) {
+            await safeStorageDelete(ctx, attachment.storageId);
+        }
         await ctx.db.delete(args.id);
-
-        await applyCloudUsageDelta(ctx, authenticatedUserId, {
-            attachmentCount: countsTowardsUsage ? -1 : 0,
-            attachmentBytes: countsTowardsUsage ? -attachment.size : 0,
-        });
+        if (countsTowardsUsage) {
+            await deleteAttachmentUsage(ctx, attachment);
+        }
 
         return null;
     },
@@ -313,7 +343,9 @@ export const markPurged = mutation({
 
         const wasAlreadyPurged = !!attachment.purgedAt;
 
-        await safeStorageDelete(ctx, attachment.storageId);
+        if (attachment.storageId) {
+            await safeStorageDelete(ctx, attachment.storageId);
+        }
 
         // Mark as purged (keep the record for placeholder display)
         await ctx.db.patch(args.id, {
@@ -321,10 +353,7 @@ export const markPurged = mutation({
         });
 
         if (!wasAlreadyPurged) {
-            await applyCloudUsageDelta(ctx, authenticatedUserId, {
-                attachmentCount: -1,
-                attachmentBytes: -attachment.size,
-            });
+            await deleteAttachmentUsage(ctx, attachment);
         }
 
         return null;
@@ -339,16 +368,7 @@ export const getTotalBytesByUser = query({
         const authenticatedUserId = await requireAuthUserId(ctx);
         requireUserMatches(authenticatedUserId, args.userId);
 
-        const user = await ctx.db.get(authenticatedUserId);
-        const cached = readCloudUsageCountersFromUser(user);
-        if (cached) {
-            return cached.attachmentBytes;
-        }
-
-        const usage = await computeCloudAttachmentUsage(
-            ctx,
-            authenticatedUserId,
-        );
+        const usage = await getCloudUsage(ctx, authenticatedUserId);
         return usage.attachmentBytes;
     },
 });
@@ -374,7 +394,7 @@ export const listByUser = query({
 // Delete all attachments for a message
 export const deleteByMessage = mutation({
     args: { messageId: v.id("messages") },
-    returns: v.null(),
+    returns: v.id("deleteOperations"),
     handler: async (ctx, args) => {
         const authenticatedUserId = await requireAuthUserId(ctx);
         const message = await ctx.db.get(args.messageId);
@@ -386,89 +406,24 @@ export const deleteByMessage = mutation({
             });
         }
 
-        let deletedAttachments = 0;
-        let freedAttachmentBytes = 0;
-
-        await drainBatches(
-            () =>
-                ctx.db
-                    .query("attachments")
-                    .withIndex("by_message", (q) =>
-                        q.eq("messageId", args.messageId),
-                    )
-                    .take(100),
-            async (attachment) => {
-                if (!attachment.purgedAt) {
-                    deletedAttachments++;
-                    freedAttachmentBytes += attachment.size;
-                }
-                await safeStorageDelete(ctx, attachment.storageId);
-                await ctx.db.delete(attachment._id);
-            },
-        );
-
-        if (deletedAttachments > 0 || freedAttachmentBytes > 0) {
-            await applyCloudUsageDelta(ctx, authenticatedUserId, {
-                attachmentCount: -deletedAttachments,
-                attachmentBytes: -freedAttachmentBytes,
-            });
-        }
-
-        return null;
+        return await enqueueDeleteOperation(ctx, {
+            userId: authenticatedUserId,
+            kind: "messageAttachments",
+            targetMessageId: args.messageId,
+        });
     },
 });
 
 // Delete all attachments for the current user
 export const clearAllForUser = mutation({
     args: {},
-    returns: v.null(),
+    returns: v.id("deleteOperations"),
     handler: async (ctx) => {
         const userId = await requireAuthUserId(ctx);
 
-        let purgedAttachments = 0;
-        let purgedBytes = 0;
-        const purgedAt = Date.now();
-
-        let cursor: string | null = null;
-        // Avoid accidental infinite loops if cursors don't advance.
-        for (let i = 0; i < 100_000; i++) {
-            const page = await ctx.db
-                .query("attachments")
-                .withIndex("by_user_created", (q) => q.eq("userId", userId))
-                .order("asc")
-                .paginate({ numItems: 200, cursor });
-
-            for (const attachment of page.page) {
-                // Always try to delete the backing storage object (idempotent).
-                await safeStorageDelete(ctx, attachment.storageId);
-
-                if (attachment.purgedAt) {
-                    continue;
-                }
-
-                purgedAttachments++;
-                purgedBytes += attachment.size;
-                await ctx.db.patch(attachment._id, { purgedAt });
-            }
-
-            if (page.isDone) break;
-
-            if (page.continueCursor === cursor) {
-                throw new ConvexError({
-                    code: "PAGINATION_STALLED",
-                    message: "Pagination cursor did not advance",
-                });
-            }
-            cursor = page.continueCursor;
-        }
-
-        if (purgedAttachments > 0 || purgedBytes > 0) {
-            await applyCloudUsageDelta(ctx, userId, {
-                attachmentCount: -purgedAttachments,
-                attachmentBytes: -purgedBytes,
-            });
-        }
-
-        return null;
+        return await enqueueDeleteOperation(ctx, {
+            userId,
+            kind: "userAttachments",
+        });
     },
 });

@@ -240,11 +240,11 @@ describe("clipboard", () => {
             expect(result?.mimeType).toBe("image/jpeg");
         });
 
-        test("matches svg → image/svg+xml", () => {
+        test("rejects svg URLs because attachment storage does not support them", () => {
             const result = parseImageUrlFromClipboardEvent(
                 makeTextPasteEvent("https://example.com/logo.svg"),
             );
-            expect(result?.mimeType).toBe("image/svg+xml");
+            expect(result).toBeNull();
         });
 
         test("matches webp", () => {

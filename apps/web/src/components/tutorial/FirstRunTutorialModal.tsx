@@ -1,15 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import {
-    Check,
-    Cloud,
-    ExternalLink,
-    Key,
-    Loader2,
-    Monitor,
-    X,
-} from "lucide-react";
+import { X } from "lucide-react";
 import { useAuthActions } from "@convex-dev/auth/react";
 import { useSafeConvexAuth } from "@/contexts/ConvexProvider";
 import { useSync } from "@/contexts/SyncContext";
@@ -17,15 +9,19 @@ import { useApiKey } from "@/hooks/useApiKey";
 import { getStorageUsage } from "@/lib/db";
 import { validateApiKey } from "@/lib/openrouter";
 import * as storage from "@/lib/storage";
-import { cn, externalLinkProps } from "@/lib/utils";
+import {
+    ApiKeyStep,
+    CloudStatusStep,
+    DoneStep,
+    StartStep,
+    type TutorialMode,
+} from "./FirstRunTutorialSteps";
 
 const DISMISSED_KEY = "routerchat-tutorial-dismissed";
 const STEP_KEY = "routerchat-tutorial-step";
 const MODE_KEY = "routerchat-tutorial-mode";
 
 type TutorialStep = "start" | "cloud-status" | "api-key" | "done";
-type TutorialMode = "local" | "cloud";
-
 interface TutorialVisibilityInput {
     localSessions: number | null;
     isApiKeyLoading: boolean;
@@ -75,6 +71,16 @@ export function getTutorialVisibilityState(
         shouldUpdate: true,
         shouldSetStartStep,
         isVisible,
+    };
+}
+
+export function getCloudTutorialSelectionAction(
+    isAuthenticated: boolean,
+    hasSignIn: boolean,
+): { shouldSetAutoEnableReason: boolean; shouldSignIn: boolean } {
+    return {
+        shouldSetAutoEnableReason: true,
+        shouldSignIn: !isAuthenticated && hasSignIn,
     };
 }
 
@@ -277,8 +283,16 @@ export function FirstRunTutorialModal() {
         setMode("cloud");
         setStep("cloud-status");
 
-        if (!isAuthenticated && signIn) {
+        const action = getCloudTutorialSelectionAction(
+            isAuthenticated,
+            Boolean(signIn),
+        );
+
+        if (action.shouldSetAutoEnableReason) {
             storage.setSyncAutoEnableReason("login");
+        }
+
+        if (action.shouldSignIn && signIn) {
             signIn("google", { redirectTo: "/chat?tutorial=cloud" });
         }
     }, [isAuthenticated, signIn]);
@@ -358,343 +372,48 @@ export function FirstRunTutorialModal() {
 
                 <div className="px-6 py-5 space-y-6">
                     {step === "start" && (
-                        <div className="space-y-5">
-                            <div className="space-y-3">
-                                <p className="text-sm text-muted-foreground">
-                                    Choose how you want to store your data.
-                                    Local-only is the default experience.
-                                </p>
-                                <div className="grid gap-3">
-                                    <button
-                                        type="button"
-                                        onClick={() => setMode("local")}
-                                        className={cn(
-                                            "border px-4 py-3 text-left transition-colors",
-                                            mode === "local"
-                                                ? "border-primary bg-primary/10"
-                                                : "border-border bg-background-elevated hover:border-primary/40",
-                                        )}
-                                    >
-                                        <div className="flex items-center gap-3">
-                                            <div className="w-9 h-9 bg-primary/10 flex items-center justify-center">
-                                                <Monitor
-                                                    size={16}
-                                                    className="text-primary"
-                                                />
-                                            </div>
-                                            <div>
-                                                <p className="text-sm font-medium">
-                                                    Local Storage
-                                                </p>
-                                                <p className="text-xs text-muted-foreground">
-                                                    Everything stays on this
-                                                    device.
-                                                </p>
-                                            </div>
-                                        </div>
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onClick={() => setMode("cloud")}
-                                        disabled={!isConvexAvailable}
-                                        className={cn(
-                                            "border px-4 py-3 text-left transition-colors",
-                                            mode === "cloud"
-                                                ? "border-primary bg-primary/10"
-                                                : "border-border bg-background-elevated hover:border-primary/40",
-                                            !isConvexAvailable &&
-                                                "opacity-60 cursor-not-allowed",
-                                        )}
-                                    >
-                                        <div className="flex items-center gap-3">
-                                            <div className="w-9 h-9 bg-primary/10 flex items-center justify-center">
-                                                <Cloud
-                                                    size={16}
-                                                    className="text-primary"
-                                                />
-                                            </div>
-                                            <div>
-                                                <p className="text-sm font-medium">
-                                                    Cloud Sync
-                                                </p>
-                                                <p className="text-xs text-muted-foreground">
-                                                    Sync across devices with
-                                                    Convex.
-                                                </p>
-                                            </div>
-                                        </div>
-                                    </button>
-                                </div>
-                            </div>
-                            <div className="flex flex-wrap gap-3 justify-end">
-                                {mode === "cloud" ? (
-                                    <button
-                                        type="button"
-                                        onClick={handleSelectCloud}
-                                        disabled={!isConvexAvailable}
-                                        className="btn-deco btn-deco-primary cursor-pointer"
-                                    >
-                                        <span className="text-sm">
-                                            Next: Sign In
-                                        </span>
-                                    </button>
-                                ) : (
-                                    <button
-                                        type="button"
-                                        onClick={handleSelectLocal}
-                                        className="btn-deco btn-deco-primary cursor-pointer"
-                                    >
-                                        <span className="text-sm">
-                                            Next: Continue Locally{" "}
-                                        </span>
-                                    </button>
-                                )}
-                            </div>
-                        </div>
+                        <StartStep
+                            mode={mode}
+                            isConvexAvailable={isConvexAvailable}
+                            onModeChange={setMode}
+                            onSelectLocal={handleSelectLocal}
+                            onSelectCloud={handleSelectCloud}
+                        />
                     )}
 
-                    {step === "cloud-status" && !isConvexAvailable && (
-                        <div className="space-y-5">
-                            <div className="space-y-2">
-                                <div className="flex items-center gap-2 text-sm font-medium">
-                                    <Cloud size={16} />
-                                    <span>Cloud sync unavailable</span>
-                                </div>
-                                <p className="text-sm text-muted-foreground">
-                                    Cloud sync is not configured for this
-                                    deployment. Continue with local storage —
-                                    your data will stay on this device.
-                                </p>
-                            </div>
-                            <div className="flex justify-end">
-                                <button
-                                    type="button"
-                                    onClick={() => {
-                                        storage.clearSyncAutoEnableReason();
-                                        setMode("local");
-                                        setStep("api-key");
-                                    }}
-                                    className="btn-deco btn-deco-primary cursor-pointer"
-                                >
-                                    <span className="text-sm">
-                                        Continue Locally
-                                    </span>
-                                </button>
-                            </div>
-                        </div>
-                    )}
-
-                    {step === "cloud-status" && isConvexAvailable && (
-                        <div className="space-y-5">
-                            <div className="space-y-2">
-                                <div className="flex items-center gap-2 text-sm font-medium">
-                                    <Cloud size={16} />
-                                    <span>Cloud sync setup</span>
-                                </div>
-                                <p className="text-sm text-muted-foreground">
-                                    {isAuthenticated
-                                        ? "Signed in. Enabling cloud sync..."
-                                        : "Sign in with Google to enable cloud sync."}
-                                </p>
-                            </div>
-                            <div className="border border-border bg-muted/20 px-4 py-3 text-sm">
-                                <div className="flex items-center justify-between gap-3">
-                                    <span className="text-muted-foreground">
-                                        Status
-                                    </span>
-                                    <span
-                                        className={
-                                            isAuthenticated
-                                                ? "text-success"
-                                                : "text-muted-foreground"
-                                        }
-                                    >
-                                        {isAuthLoading
-                                            ? "Checking..."
-                                            : isAuthenticated
-                                              ? "Signed in"
-                                              : "Signed out"}
-                                    </span>
-                                </div>
-                                {isAuthenticated && (
-                                    <div className="flex items-center gap-2 text-xs text-success mt-2">
-                                        {isMigrating ? (
-                                            <Loader2
-                                                size={12}
-                                                className="animate-spin"
-                                            />
-                                        ) : (
-                                            <Check size={12} />
-                                        )}
-                                        <span>
-                                            {syncState === "cloud-enabled"
-                                                ? "Cloud sync is enabled."
-                                                : "Enabling cloud sync..."}
-                                        </span>
-                                    </div>
-                                )}
-                            </div>
-
-                            {!isAuthenticated && (
-                                <button
-                                    type="button"
-                                    onClick={handleSelectCloud}
-                                    className="btn-deco btn-deco-primary w-full cursor-pointer"
-                                >
-                                    <span className="text-sm">Sign In</span>
-                                </button>
-                            )}
-
-                            {isAuthenticated &&
-                                syncState === "cloud-enabled" && (
-                                    <div className="flex justify-end">
-                                        <button
-                                            type="button"
-                                            onClick={() => setStep("api-key")}
-                                            className="btn-deco btn-deco-primary cursor-pointer"
-                                        >
-                                            <span className="text-sm">
-                                                Next: Add API Key{" "}
-                                            </span>
-                                        </button>
-                                    </div>
-                                )}
-                        </div>
+                    {step === "cloud-status" && (
+                        <CloudStatusStep
+                            isConvexAvailable={isConvexAvailable}
+                            isAuthenticated={isAuthenticated}
+                            isAuthLoading={isAuthLoading}
+                            isMigrating={isMigrating}
+                            syncState={syncState}
+                            onSelectCloud={handleSelectCloud}
+                            onContinueLocal={() => {
+                                setMode("local");
+                                setStep("api-key");
+                            }}
+                            onNextApiKey={() => setStep("api-key")}
+                        />
                     )}
 
                     {step === "api-key" && (
-                        <div className="space-y-5">
-                            <div className="space-y-2">
-                                <div className="flex items-center gap-2 text-sm font-medium">
-                                    <Key size={16} />
-                                    <span>Connect your API key</span>
-                                </div>
-                                <p className="text-sm text-muted-foreground">
-                                    RouterChat uses your OpenRouter API key for
-                                    all requests, even when cloud sync is
-                                    enabled.
-                                </p>
-                            </div>
-                            <div className="space-y-3">
-                                <div>
-                                    <label
-                                        htmlFor="tutorial-api-key"
-                                        className="label-deco"
-                                    >
-                                        API Key
-                                    </label>
-                                    <input
-                                        id="tutorial-api-key"
-                                        type="password"
-                                        value={newApiKey}
-                                        onChange={(event) => {
-                                            setNewApiKey(event.target.value);
-                                            setValidationResult(null);
-                                        }}
-                                        placeholder="sk-or-..."
-                                        className="input-deco font-mono"
-                                    />
-                                </div>
-                                <div className="flex flex-wrap gap-3">
-                                    <button
-                                        type="button"
-                                        onClick={handleValidateApiKey}
-                                        disabled={
-                                            validating || !newApiKey.trim()
-                                        }
-                                        className="btn-deco btn-deco-secondary cursor-pointer"
-                                    >
-                                        {validating ? (
-                                            <Loader2
-                                                size={14}
-                                                className="animate-spin"
-                                            />
-                                        ) : (
-                                            <Check size={14} />
-                                        )}
-                                        <span className="text-sm">
-                                            Validate
-                                        </span>
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onClick={handleSaveApiKey}
-                                        disabled={saving || !newApiKey.trim()}
-                                        className="btn-deco btn-deco-primary cursor-pointer"
-                                    >
-                                        <span className="text-sm">
-                                            {saving ? "Saving..." : "Save Key"}
-                                        </span>
-                                    </button>
-                                </div>
-                                {validationResult === true && (
-                                    <div className="flex items-center gap-2 text-success px-3 py-2 bg-success/5 border border-success/20">
-                                        <Check size={14} />
-                                        <span className="text-sm font-medium">
-                                            Valid API key
-                                        </span>
-                                    </div>
-                                )}
-                                {validationResult === false && (
-                                    <div className="flex items-center gap-2 text-error px-3 py-2 bg-error/5 border border-error/20">
-                                        <span className="text-sm font-medium">
-                                            Invalid API key
-                                        </span>
-                                    </div>
-                                )}
-                                <div className="flex items-center gap-2 text-muted-foreground text-sm p-3 bg-muted/30 border border-border">
-                                    <ExternalLink
-                                        size={14}
-                                        className="flex-shrink-0"
-                                    />
-                                    <span>
-                                        Get your key from{" "}
-                                        <a
-                                            href="https://openrouter.ai/keys"
-                                            {...externalLinkProps}
-                                            className="text-primary hover:underline"
-                                        >
-                                            openrouter.ai/keys
-                                        </a>
-                                    </span>
-                                </div>
-                            </div>
-                            <div className="flex flex-wrap gap-3 justify-end">
-                                <button
-                                    type="button"
-                                    onClick={handleSkipApiKey}
-                                    className="btn-deco btn-deco-secondary cursor-pointer"
-                                >
-                                    <span className="text-sm">Next</span>
-                                </button>
-                            </div>
-                        </div>
+                        <ApiKeyStep
+                            newApiKey={newApiKey}
+                            validating={validating}
+                            validationResult={validationResult}
+                            saving={saving}
+                            onApiKeyChange={(value) => {
+                                setNewApiKey(value);
+                                setValidationResult(null);
+                            }}
+                            onValidateApiKey={handleValidateApiKey}
+                            onSaveApiKey={handleSaveApiKey}
+                            onSkipApiKey={handleSkipApiKey}
+                        />
                     )}
 
-                    {step === "done" && (
-                        <div className="space-y-5">
-                            <div className="space-y-2">
-                                <div className="flex items-center gap-2 text-sm font-medium">
-                                    <Check size={16} className="text-success" />
-                                    <span>All set</span>
-                                </div>
-                                <p className="text-sm text-muted-foreground">
-                                    You can tweak everything later in Settings.
-                                    If you have questions, that is the best
-                                    place to look.
-                                </p>
-                            </div>
-                            <div className="flex justify-end gap-3">
-                                <button
-                                    type="button"
-                                    onClick={handleFinish}
-                                    className="btn-deco btn-deco-primary cursor-pointer"
-                                >
-                                    <span className="text-sm">Finish</span>
-                                </button>
-                            </div>
-                        </div>
-                    )}
+                    {step === "done" && <DoneStep onFinish={handleFinish} />}
                 </div>
             </div>
         </div>

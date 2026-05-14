@@ -4,11 +4,9 @@ import { mutation, query } from "./_generated/server";
 import { isOwner, requireAuthUserId, requireUserMatches } from "./lib/authz";
 import { assertMaxLen, LIMITS } from "./lib/limits";
 import { clampPaginationOpts } from "./lib/pagination";
-import { drainBatches, safeStorageDelete } from "./lib/batch";
-import {
-    applyCloudUsageDelta,
-    ensureCloudUsageCounters,
-} from "./lib/cloud_usage";
+import { enqueueDeleteOperation } from "./lib/delete_operations";
+import { chatUsage } from "./lib/usage_aggregates";
+import { limitContentCreation } from "./lib/rate_limits";
 
 const chatDocValidator = v.object({
     _id: v.id("chats"),
@@ -139,14 +137,7 @@ export const create = mutation({
         assertMaxLen(args.localId, LIMITS.maxLocalIdChars, "localId");
         assertMaxLen(args.title, LIMITS.maxChatTitleChars, "title");
 
-        const usage = await ensureCloudUsageCounters(ctx, authenticatedUserId);
-        if (usage.chatCount >= LIMITS.maxChatsPerUser) {
-            throw new ConvexError({
-                code: "LIMIT_REACHED",
-                message: "Chat limit reached",
-                resource: "chats",
-            });
-        }
+        await limitContentCreation(ctx, "createChat", authenticatedUserId);
 
         const now = Date.now();
         const chatId = await ctx.db.insert("chats", {
@@ -160,7 +151,8 @@ export const create = mutation({
             updatedAt: args.updatedAt ?? now,
         });
 
-        await applyCloudUsageDelta(ctx, authenticatedUserId, { chatCount: 1 });
+        const chat = await ctx.db.get(chatId);
+        await chatUsage.insertIfDoesNotExist(ctx, chat!);
         return chatId;
     },
 });
@@ -178,7 +170,7 @@ export const update = mutation({
     handler: async (ctx, args) => {
         const authenticatedUserId = await requireAuthUserId(ctx);
         const chat = await ctx.db.get(args.id);
-        if (!isOwner(chat, authenticatedUserId)) {
+        if (!chat || !isOwner(chat, authenticatedUserId)) {
             throw new ConvexError({
                 code: "NOT_FOUND",
                 message: "Chat not found",
@@ -203,7 +195,7 @@ export const update = mutation({
 // Delete a chat and all associated messages/attachments
 export const remove = mutation({
     args: { id: v.id("chats") },
-    returns: v.null(),
+    returns: v.id("deleteOperations"),
     handler: async (ctx, args) => {
         const authenticatedUserId = await requireAuthUserId(ctx);
         const chat = await ctx.db.get(args.id);
@@ -215,53 +207,17 @@ export const remove = mutation({
             });
         }
 
-        let deletedMessages = 0;
-        let deletedAttachments = 0;
-        let freedAttachmentBytes = 0;
-
-        await drainBatches(
-            () =>
-                ctx.db
-                    .query("messages")
-                    .withIndex("by_chat_created", (q) =>
-                        q.eq("chatId", args.id),
-                    )
-                    .take(100),
-            async (message) => {
-                deletedMessages++;
-                await drainBatches(
-                    () =>
-                        ctx.db
-                            .query("attachments")
-                            .withIndex("by_message", (q) =>
-                                q.eq("messageId", message._id),
-                            )
-                            .take(100),
-                    async (attachment) => {
-                        if (!attachment.purgedAt) {
-                            deletedAttachments++;
-                            freedAttachmentBytes += attachment.size;
-                        }
-                        await safeStorageDelete(ctx, attachment.storageId);
-                        await ctx.db.delete(attachment._id);
-                    },
-                );
-
-                await ctx.db.delete(message._id);
-            },
-        );
+        const operationId = await enqueueDeleteOperation(ctx, {
+            userId: authenticatedUserId,
+            kind: "chat",
+            targetChatId: args.id,
+        });
 
         // Delete the chat
         await ctx.db.delete(args.id);
+        await chatUsage.deleteIfExists(ctx, chat!);
 
-        await applyCloudUsageDelta(ctx, authenticatedUserId, {
-            chatCount: -1,
-            messageCount: -deletedMessages,
-            attachmentCount: -deletedAttachments,
-            attachmentBytes: -freedAttachmentBytes,
-        });
-
-        return null;
+        return operationId;
     },
 });
 

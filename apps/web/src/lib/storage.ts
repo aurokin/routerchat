@@ -1,4 +1,9 @@
-import type { ProviderSortPreference, SearchLevel, Skill } from "./types";
+import type {
+    PdfParserEnginePreference,
+    ProviderSortPreference,
+    SearchLevel,
+    Skill,
+} from "./types";
 import type { SyncState, SyncMetadata } from "./sync/types";
 import { DEFAULT_SYNC_METADATA } from "./sync/types";
 
@@ -9,7 +14,9 @@ const STORAGE_KEYS = {
     DEFAULT_THINKING: "routerchat-default-thinking",
     DEFAULT_SEARCH: "routerchat-default-search",
     PROMPT_CACHE_ENABLED: "routerchat-prompt-cache-enabled",
+    STRUCTURED_OUTPUT_JSON: "routerchat-structured-output-json",
     PROVIDER_SORT: "routerchat-provider-sort",
+    PDF_PARSER_ENGINE: "routerchat-pdf-parser-engine",
     FAVORITE_MODELS: "routerchat-favorite-models",
     SKILLS: "routerchat-skills",
     DEFAULT_SKILL: "routerchat-default-skill",
@@ -220,6 +227,19 @@ export function setPromptCacheEnabled(enabled: boolean): void {
     );
 }
 
+export function getStructuredOutputJson(): boolean {
+    if (typeof window === "undefined") return false;
+    return localStorage.getItem(STORAGE_KEYS.STRUCTURED_OUTPUT_JSON) === "true";
+}
+
+export function setStructuredOutputJson(enabled: boolean): void {
+    if (typeof window === "undefined") return;
+    localStorage.setItem(
+        STORAGE_KEYS.STRUCTURED_OUTPUT_JSON,
+        enabled ? "true" : "false",
+    );
+}
+
 const PROVIDER_SORT_VALUES = [
     "default",
     "price",
@@ -238,6 +258,27 @@ export function getProviderSort(): ProviderSortPreference {
 export function setProviderSort(value: ProviderSortPreference): void {
     if (typeof window === "undefined") return;
     localStorage.setItem(STORAGE_KEYS.PROVIDER_SORT, value);
+}
+
+const PDF_PARSER_ENGINE_VALUES = [
+    "auto",
+    "mistral-ocr",
+    "pdf-text",
+    "cloudflare-ai",
+    "native",
+] as const satisfies readonly PdfParserEnginePreference[];
+
+export function getPdfParserEngine(): PdfParserEnginePreference {
+    if (typeof window === "undefined") return "auto";
+    const stored = localStorage.getItem(STORAGE_KEYS.PDF_PARSER_ENGINE) ?? "";
+    return (PDF_PARSER_ENGINE_VALUES as readonly string[]).includes(stored)
+        ? (stored as PdfParserEnginePreference)
+        : "auto";
+}
+
+export function setPdfParserEngine(value: PdfParserEnginePreference): void {
+    if (typeof window === "undefined") return;
+    localStorage.setItem(STORAGE_KEYS.PDF_PARSER_ENGINE, value);
 }
 
 export function getSkills(): Skill[] {

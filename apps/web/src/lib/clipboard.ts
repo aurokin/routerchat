@@ -85,7 +85,7 @@ export async function readClipboardImage(): Promise<ClipboardImage | null> {
  * re-encoding the bytes. Returns the parsed URL string when matched,
  * `null` when the paste should fall through to normal text handling.
  */
-const IMAGE_URL_EXTENSION_RE = /\.(png|jpe?g|gif|webp|bmp|svg)(\?.*)?$/i;
+const IMAGE_URL_EXTENSION_RE = /\.(png|jpe?g|gif|webp|bmp)(\?.*)?$/i;
 const IMAGE_URL_MAX_LENGTH = 2048;
 
 export function parseImageUrlFromClipboardEvent(
@@ -110,11 +110,7 @@ export function parseImageUrlFromClipboardEvent(
 
     const ext = match[1]?.toLowerCase();
     const mimeType =
-        ext === "jpg" || ext === "jpeg"
-            ? "image/jpeg"
-            : ext === "svg"
-              ? "image/svg+xml"
-              : `image/${ext}`;
+        ext === "jpg" || ext === "jpeg" ? "image/jpeg" : `image/${ext}`;
     return { url: parsed.toString(), mimeType };
 }
 

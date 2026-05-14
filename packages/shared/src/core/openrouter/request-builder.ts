@@ -6,6 +6,7 @@ import { buildWebSearchTool, modelSupportsSearch } from "./web-search";
 import type {
     ChatCompletionRequest,
     ChatSession,
+    FileContent,
     FunctionTool,
     ImageUrlContent,
     OpenRouterMessage,
@@ -19,14 +20,28 @@ import type {
 export function buildMessageContent(
     text: string,
     attachments?: Attachment[],
-): string | Array<TextContent | ImageUrlContent> {
+): string | Array<TextContent | ImageUrlContent | FileContent> {
     if (!attachments || attachments.length === 0) {
         return text;
     }
 
-    const content: Array<TextContent | ImageUrlContent> = [];
+    const content: Array<TextContent | ImageUrlContent | FileContent> = [];
 
     for (const attachment of attachments) {
+        if (attachment.type === "file") {
+            const fileData =
+                attachment.url ??
+                `data:${attachment.mimeType};base64,${attachment.data}`;
+            content.push({
+                type: "file",
+                file: {
+                    filename: attachment.filename ?? "attachment",
+                    file_data: fileData,
+                },
+            });
+            continue;
+        }
+
         // URL-passthrough attachments carry a remote image URL; everything
         // else is locally-stored bytes we encode as a data URI.
         const url =

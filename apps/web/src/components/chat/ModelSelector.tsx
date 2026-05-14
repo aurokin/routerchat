@@ -1,16 +1,59 @@
 "use client";
 
 import React, { useRef, useEffect, useMemo, useState } from "react";
-import { ChevronDown, Cpu, Star, Search } from "lucide-react";
+import { ChevronDown, Cpu, Star, Search, Music } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useSettings } from "@/contexts/SettingsContext";
 import { Skeleton } from "@/components/ui/Skeleton";
+import type { OpenRouterModel } from "@/lib/types";
 
 interface ModelSelectorProps {
     selectedModel: string;
     onModelChange: (modelId: string) => void;
     /** Variant controls styling: 'compact' for chat input, 'settings' for settings page */
     variant?: "compact" | "settings";
+}
+
+function formatContextLength(value: number | undefined): string | null {
+    if (!value) return null;
+    if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M ctx`;
+    if (value >= 1000) return `${Math.round(value / 1000)}k ctx`;
+    return `${value} ctx`;
+}
+
+function formatTokenPrice(value: string | undefined): string | null {
+    if (!value) return null;
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric) || numeric <= 0) return null;
+    const perMillion = numeric * 1_000_000;
+    if (perMillion < 0.01) return `$${perMillion.toFixed(4)}/M`;
+    if (perMillion < 1) return `$${perMillion.toFixed(3)}/M`;
+    return `$${perMillion.toFixed(2)}/M`;
+}
+
+function ModelMetadata({ model }: { model: OpenRouterModel }) {
+    const context = formatContextLength(
+        model.topProviderContextLength ?? model.contextLength,
+    );
+    const promptPrice = formatTokenPrice(model.pricing?.prompt);
+    const hasAudio = model.inputModalities?.includes("audio") ?? false;
+
+    if (!context && !promptPrice && !hasAudio && !model.knowledgeCutoff) {
+        return null;
+    }
+
+    return (
+        <span className="flex items-center gap-1.5 text-[10px] text-muted-foreground min-w-0">
+            {context && <span>{context}</span>}
+            {promptPrice && <span>{promptPrice} input</span>}
+            {model.knowledgeCutoff && <span>{model.knowledgeCutoff}</span>}
+            {hasAudio && (
+                <span title="Audio input">
+                    <Music size={10} />
+                </span>
+            )}
+        </span>
+    );
 }
 
 export function ModelSelector({
@@ -299,8 +342,11 @@ export function ModelSelector({
                                                 className="text-primary fill-primary flex-shrink-0 group-hover:fill-primary/70"
                                             />
                                         </div>
-                                        <span className="truncate text-foreground">
-                                            {model.name}
+                                        <span className="min-w-0">
+                                            <span className="block truncate text-foreground">
+                                                {model.name}
+                                            </span>
+                                            <ModelMetadata model={model} />
                                         </span>
                                     </button>
                                 ))}
@@ -366,8 +412,11 @@ export function ModelSelector({
                                                     )}
                                                 />
                                             </div>
-                                            <span className="truncate text-foreground">
-                                                {model.name}
+                                            <span className="min-w-0">
+                                                <span className="block truncate text-foreground">
+                                                    {model.name}
+                                                </span>
+                                                <ModelMetadata model={model} />
                                             </span>
                                         </button>
                                     ))}

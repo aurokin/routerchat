@@ -34,6 +34,8 @@ import {
     ChevronDown,
     Zap,
     Route,
+    Braces,
+    FileText,
 } from "lucide-react";
 import { cn, externalLinkProps } from "@/lib/utils";
 const CloudSyncSettings = dynamic(
@@ -72,8 +74,12 @@ function SettingsPageContent() {
         setTheme,
         promptCacheEnabled,
         setPromptCacheEnabled,
+        structuredOutputJson,
+        setStructuredOutputJson,
         providerSort,
         setProviderSort,
+        pdfParserEngine,
+        setPdfParserEngine,
     } = useSettings();
     const [newApiKey, setNewApiKey] = useState(apiKey || "");
     const lastApiKeyRef = useRef<string | null>(apiKey ?? null);
@@ -508,6 +514,113 @@ function SettingsPageContent() {
                                 aria-label="Enable prompt caching"
                             />
                         </label>
+                    </section>
+
+                    {/* Structured output */}
+                    <section className="card-deco mb-6">
+                        <div className="flex items-center gap-3 mb-4">
+                            <div className="w-8 h-8 bg-accent/10 flex items-center justify-center">
+                                <Braces size={16} className="text-accent" />
+                            </div>
+                            <h2 className="text-lg font-medium">
+                                Structured output
+                            </h2>
+                        </div>
+                        <p className="text-sm text-muted-foreground mb-4">
+                            Ask compatible models to return a JSON object by
+                            sending OpenRouter&apos;s{" "}
+                            <code className="text-xs">response_format</code>{" "}
+                            option with each chat request.
+                        </p>
+                        <label className="flex items-center justify-between gap-4 cursor-pointer select-none border border-border bg-background-elevated px-4 py-3 hover:border-primary/40 transition-colors">
+                            <span className="text-sm font-medium">
+                                Request JSON object responses
+                            </span>
+                            <input
+                                type="checkbox"
+                                className="h-4 w-4 cursor-pointer accent-primary"
+                                checked={structuredOutputJson}
+                                onChange={(e) =>
+                                    setStructuredOutputJson(e.target.checked)
+                                }
+                                aria-label="Request JSON object responses"
+                            />
+                        </label>
+                    </section>
+
+                    {/* PDF inputs */}
+                    <section className="card-deco mb-6">
+                        <div className="flex items-center gap-3 mb-4">
+                            <div className="w-8 h-8 bg-accent/10 flex items-center justify-center">
+                                <FileText size={16} className="text-accent" />
+                            </div>
+                            <h2 className="text-lg font-medium">PDF inputs</h2>
+                        </div>
+                        <p className="text-sm text-muted-foreground mb-4">
+                            Choose the OpenRouter parser engine for attached
+                            PDFs. Auto omits the parser plugin and lets
+                            OpenRouter pick the default path.
+                        </p>
+                        <div
+                            className="grid grid-cols-2 sm:grid-cols-5 gap-3"
+                            role="radiogroup"
+                            aria-label="PDF parser engine"
+                        >
+                            {(
+                                [
+                                    {
+                                        value: "auto",
+                                        label: "Auto",
+                                        sub: "Default",
+                                    },
+                                    {
+                                        value: "pdf-text",
+                                        label: "Text",
+                                        sub: "Free",
+                                    },
+                                    {
+                                        value: "cloudflare-ai",
+                                        label: "Markdown",
+                                        sub: "Free",
+                                    },
+                                    {
+                                        value: "native",
+                                        label: "Native",
+                                        sub: "Model",
+                                    },
+                                    {
+                                        value: "mistral-ocr",
+                                        label: "OCR",
+                                        sub: "Scans",
+                                    },
+                                ] as const
+                            ).map((option) => (
+                                <button
+                                    key={option.value}
+                                    type="button"
+                                    role="radio"
+                                    onClick={() =>
+                                        setPdfParserEngine(option.value)
+                                    }
+                                    className={cn(
+                                        "p-3 border flex flex-col items-center gap-1 transition-all duration-200 cursor-pointer text-center",
+                                        pdfParserEngine === option.value
+                                            ? "border-primary bg-primary/10 shadow-deco"
+                                            : "border-border hover:border-primary/40 bg-background-elevated",
+                                    )}
+                                    aria-checked={
+                                        pdfParserEngine === option.value
+                                    }
+                                >
+                                    <span className="text-sm font-medium">
+                                        {option.label}
+                                    </span>
+                                    <span className="text-[11px] text-muted-foreground">
+                                        {option.sub}
+                                    </span>
+                                </button>
+                            ))}
+                        </div>
                     </section>
 
                     {/* Provider routing */}

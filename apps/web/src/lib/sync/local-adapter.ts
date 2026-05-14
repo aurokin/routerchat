@@ -91,8 +91,7 @@ export class LocalStorageAdapter implements StorageAdapter {
 
     // Storage stats
     async getImageStorageUsage(): Promise<number> {
-        const usage = await db.getStorageUsage();
-        return usage.attachments;
+        return await db.getImageStorageUsage();
     }
 
     async getStorageUsage(): Promise<{

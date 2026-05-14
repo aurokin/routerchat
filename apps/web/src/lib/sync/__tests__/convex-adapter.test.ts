@@ -268,6 +268,67 @@ describe("ConvexStorageAdapter", () => {
         expect(query).toHaveBeenCalledTimes(2);
     });
 
+    it("round-trips tool fields on messages", async () => {
+        const toolCalls = [
+            {
+                id: "call-1",
+                type: "function" as const,
+                function: {
+                    name: "calculator",
+                    arguments: '{"expression":"2+2"}',
+                },
+            },
+        ];
+        const toolExecutions = [
+            {
+                id: "call-1",
+                name: "calculator",
+                arguments: '{"expression":"2+2"}',
+                result: '{"result":4}',
+                status: "success" as const,
+            },
+        ];
+        const toolMessageDoc = {
+            ...messageDoc,
+            role: "assistant" as const,
+            toolCalls,
+            toolExecutions,
+        };
+        const { client, mutation, query } = createClient(
+            [messageDoc._id],
+            [
+                chatDoc,
+                {
+                    page: [toolMessageDoc],
+                    isDone: true,
+                    continueCursor: "",
+                },
+            ],
+        );
+        const adapter = new ConvexStorageAdapter(client, userId);
+
+        await adapter.createMessage({
+            id: "msg-1",
+            sessionId: "chat-1",
+            role: "assistant",
+            content: "",
+            contextContent: "",
+            toolCalls,
+            toolExecutions,
+            createdAt: 3,
+        });
+
+        expect(mutation.mock.calls[0]?.[1]).toMatchObject({
+            toolCalls,
+            toolExecutions,
+        });
+
+        const messages = await adapter.getMessagesByChat("chat-1");
+        expect(messages[0]?.toolCalls).toEqual(toolCalls);
+        expect(messages[0]?.toolExecutions).toEqual(toolExecutions);
+        expect(query).toHaveBeenCalledTimes(2);
+    });
+
     it("uploads attachments and serves them from the in-memory cache", async () => {
         const { client, mutation, query } = createClient(
             ["https://upload.test", attachmentDoc._id],
@@ -304,6 +365,37 @@ describe("ConvexStorageAdapter", () => {
         ).toBe(false);
     });
 
+    it("saves URL attachments without uploading storage bytes", async () => {
+        const { client, mutation, query } = createClient(
+            [attachmentDoc._id],
+            [messageDoc],
+        );
+        const adapter = new ConvexStorageAdapter(client, userId);
+        const attachment: Attachment = {
+            id: "att-url",
+            messageId: "msg-1",
+            type: "image",
+            mimeType: "image/png",
+            data: "",
+            width: 0,
+            height: 0,
+            size: 0,
+            url: "https://example.com/image.png",
+            createdAt: 4,
+        };
+
+        await adapter.saveAttachment(attachment);
+
+        expect(fetchMock).not.toHaveBeenCalled();
+        expect(query).toHaveBeenCalledTimes(1);
+        expect(mutation).toHaveBeenCalledTimes(1);
+        expect(mutation.mock.calls[0]?.[1]).toMatchObject({
+            type: "image",
+            url: "https://example.com/image.png",
+            size: 0,
+        });
+    });
+
     it("downloads attachments once and caches the result", async () => {
         const attachmentDoc2 = {
             ...attachmentDoc,
@@ -337,6 +429,30 @@ describe("ConvexStorageAdapter", () => {
                 ([url]) => url === "https://download.test",
             ),
         ).toHaveLength(1);
+    });
+
+    it("does not expose purged attachment URLs", async () => {
+        const purgedUrlAttachment = {
+            ...attachmentDoc,
+            storageId: undefined,
+            url: "https://example.com/purged.png",
+            purgedAt: 123,
+        };
+        const { client } = createClient(
+            [],
+            [purgedUrlAttachment, purgedUrlAttachment],
+        );
+        const adapter = new ConvexStorageAdapter(client, userId);
+
+        const fetched = await adapter.getAttachment("att-1");
+
+        expect(fetched).toMatchObject({
+            id: "att-1",
+            data: "",
+            purgedAt: 123,
+        });
+        expect(fetched?.url).toBeUndefined();
+        expect(fetchMock).not.toHaveBeenCalled();
     });
 
     it("manages skills and skill settings", async () => {

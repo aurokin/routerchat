@@ -38,6 +38,10 @@ export function getUserMessage(
             return "Access denied. You may not have permission to use this model.";
         case 408:
             return "Request timed out. Please try again.";
+        case 413:
+            return "Your message or attachments are too large. Reduce the size and try again.";
+        case 422:
+            return "The provider could not process this request. Adjust the message or model settings and try again.";
         case 429:
             return "Too many requests. Please wait before trying again.";
         case 502:

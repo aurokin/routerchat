@@ -8,6 +8,11 @@ describe("clearCloudImagesAndRefresh", () => {
         const convexClient = {
             mutation: vi.fn(async () => {
                 events.push("mutation");
+                return "op-1";
+            }),
+            query: vi.fn(async () => {
+                events.push("query");
+                return { status: "finished" };
             }),
         } as any;
 
@@ -32,11 +37,13 @@ describe("clearCloudImagesAndRefresh", () => {
 
         expect(events).toEqual([
             "mutation",
+            "query",
             "clearCaches",
             "invalidated",
             "refresh",
         ]);
         expect(convexClient.mutation).toHaveBeenCalledTimes(1);
+        expect(convexClient.query).toHaveBeenCalledTimes(1);
         expect(clearAttachmentCaches).toHaveBeenCalledTimes(1);
         expect(onCloudImagesCleared).toHaveBeenCalledTimes(1);
         expect(refreshQuotaStatus).toHaveBeenCalledTimes(1);

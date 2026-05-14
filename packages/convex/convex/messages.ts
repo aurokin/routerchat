@@ -2,19 +2,18 @@ import { ConvexError, v } from "convex/values";
 import { paginationOptsValidator } from "convex/server";
 import { mutation, query } from "./_generated/server";
 import { isOwner, requireAuthUserId, requireUserMatches } from "./lib/authz";
-import { drainBatches, safeStorageDelete } from "./lib/batch";
 import { assertMaxLen, LIMITS } from "./lib/limits";
 import { clampPaginationOpts } from "./lib/pagination";
-import {
-    applyCloudUsageDelta,
-    ensureCloudUsageCounters,
-} from "./lib/cloud_usage";
+import { enqueueDeleteOperation } from "./lib/delete_operations";
+import { messageUsage } from "./lib/usage_aggregates";
+import { limitContentCreation } from "./lib/rate_limits";
 
 const skillSnapshotValidator = v.object({
     id: v.string(),
     name: v.string(),
     description: v.string(),
     prompt: v.string(),
+    toolIds: v.optional(v.array(v.string())),
     createdAt: v.number(),
 });
 
@@ -24,6 +23,7 @@ const messageUsageValidator = v.object({
     totalTokens: v.number(),
     cost: v.optional(v.number()),
     cachedTokens: v.optional(v.number()),
+    webSearchRequests: v.optional(v.number()),
 });
 
 const reasoningDetailValidator = v.object({
@@ -38,6 +38,31 @@ const reasoningDetailValidator = v.object({
     signature: v.optional(v.string()),
 });
 
+const toolCallValidator = v.object({
+    id: v.string(),
+    type: v.literal("function"),
+    function: v.object({
+        name: v.string(),
+        arguments: v.string(),
+    }),
+});
+
+const toolExecutionValidator = v.object({
+    id: v.string(),
+    name: v.string(),
+    arguments: v.string(),
+    result: v.optional(v.string()),
+    status: v.optional(
+        v.union(
+            v.literal("pending"),
+            v.literal("running"),
+            v.literal("success"),
+            v.literal("error"),
+        ),
+    ),
+    error: v.optional(v.string()),
+});
+
 const messageDocValidator = v.object({
     _id: v.id("messages"),
     _creationTime: v.number(),
@@ -48,6 +73,7 @@ const messageDocValidator = v.object({
         v.literal("user"),
         v.literal("assistant"),
         v.literal("system"),
+        v.literal("tool"),
     ),
     content: v.string(),
     contextContent: v.string(),
@@ -59,6 +85,10 @@ const messageDocValidator = v.object({
     attachmentIds: v.optional(v.array(v.string())),
     usage: v.optional(messageUsageValidator),
     reasoningDetails: v.optional(v.array(reasoningDetailValidator)),
+    toolCalls: v.optional(v.array(toolCallValidator)),
+    toolCallId: v.optional(v.string()),
+    toolName: v.optional(v.string()),
+    toolExecutions: v.optional(v.array(toolExecutionValidator)),
     createdAt: v.number(),
 });
 
@@ -174,6 +204,7 @@ export const create = mutation({
             v.literal("user"),
             v.literal("assistant"),
             v.literal("system"),
+            v.literal("tool"),
         ),
         content: v.string(),
         contextContent: v.string(),
@@ -185,6 +216,10 @@ export const create = mutation({
         attachmentIds: v.optional(v.array(v.string())),
         usage: v.optional(messageUsageValidator),
         reasoningDetails: v.optional(v.array(reasoningDetailValidator)),
+        toolCalls: v.optional(v.array(toolCallValidator)),
+        toolCallId: v.optional(v.string()),
+        toolName: v.optional(v.string()),
+        toolExecutions: v.optional(v.array(toolExecutionValidator)),
         createdAt: v.optional(v.number()),
     },
     returns: v.id("messages"),
@@ -210,14 +245,7 @@ export const create = mutation({
             });
         }
 
-        const usage = await ensureCloudUsageCounters(ctx, authenticatedUserId);
-        if (usage.messageCount >= LIMITS.maxMessagesPerUser) {
-            throw new ConvexError({
-                code: "LIMIT_REACHED",
-                message: "Message limit reached",
-                resource: "messages",
-            });
-        }
+        await limitContentCreation(ctx, "createMessage", authenticatedUserId);
 
         const now = Date.now();
 
@@ -237,6 +265,10 @@ export const create = mutation({
             attachmentIds: args.attachmentIds,
             usage: args.usage,
             reasoningDetails: args.reasoningDetails,
+            toolCalls: args.toolCalls,
+            toolCallId: args.toolCallId,
+            toolName: args.toolName,
+            toolExecutions: args.toolExecutions,
             createdAt: args.createdAt ?? now,
         });
 
@@ -245,9 +277,8 @@ export const create = mutation({
             updatedAt: args.createdAt ?? now,
         });
 
-        await applyCloudUsageDelta(ctx, authenticatedUserId, {
-            messageCount: 1,
-        });
+        const message = await ctx.db.get(messageId);
+        await messageUsage.insertIfDoesNotExist(ctx, message!);
 
         return messageId;
     },
@@ -263,6 +294,10 @@ export const update = mutation({
         attachmentIds: v.optional(v.array(v.string())),
         usage: v.optional(messageUsageValidator),
         reasoningDetails: v.optional(v.array(reasoningDetailValidator)),
+        toolCalls: v.optional(v.array(toolCallValidator)),
+        toolCallId: v.optional(v.string()),
+        toolName: v.optional(v.string()),
+        toolExecutions: v.optional(v.array(toolExecutionValidator)),
     },
     returns: v.null(),
     handler: async (ctx, args) => {
@@ -296,7 +331,7 @@ export const update = mutation({
 // Delete a message and its attachments
 export const remove = mutation({
     args: { id: v.id("messages") },
-    returns: v.null(),
+    returns: v.id("deleteOperations"),
     handler: async (ctx, args) => {
         const authenticatedUserId = await requireAuthUserId(ctx);
         const message = await ctx.db.get(args.id);
@@ -308,42 +343,20 @@ export const remove = mutation({
             });
         }
 
-        let deletedAttachments = 0;
-        let freedAttachmentBytes = 0;
-
-        await drainBatches(
-            () =>
-                ctx.db
-                    .query("attachments")
-                    .withIndex("by_message", (q) => q.eq("messageId", args.id))
-                    .take(100),
-            async (attachment) => {
-                if (!attachment.purgedAt) {
-                    deletedAttachments++;
-                    freedAttachmentBytes += attachment.size;
-                }
-                await safeStorageDelete(ctx, attachment.storageId);
-                await ctx.db.delete(attachment._id);
-            },
-        );
-
-        // Delete the message
-        await ctx.db.delete(args.id);
-
-        await applyCloudUsageDelta(ctx, authenticatedUserId, {
-            messageCount: -1,
-            attachmentCount: -deletedAttachments,
-            attachmentBytes: -freedAttachmentBytes,
+        const operationId = await enqueueDeleteOperation(ctx, {
+            userId: authenticatedUserId,
+            kind: "message",
+            targetMessageId: args.id,
         });
 
-        return null;
+        return operationId;
     },
 });
 
 // Delete all messages for a chat
 export const deleteByChat = mutation({
     args: { chatId: v.id("chats") },
-    returns: v.null(),
+    returns: v.id("deleteOperations"),
     handler: async (ctx, args) => {
         const authenticatedUserId = await requireAuthUserId(ctx);
         const chat = await ctx.db.get(args.chatId);
@@ -355,48 +368,12 @@ export const deleteByChat = mutation({
             });
         }
 
-        let deletedMessages = 0;
-        let deletedAttachments = 0;
-        let freedAttachmentBytes = 0;
-
-        await drainBatches(
-            () =>
-                ctx.db
-                    .query("messages")
-                    .withIndex("by_chat_created", (q) =>
-                        q.eq("chatId", args.chatId),
-                    )
-                    .take(100),
-            async (message) => {
-                deletedMessages++;
-                await drainBatches(
-                    () =>
-                        ctx.db
-                            .query("attachments")
-                            .withIndex("by_message", (q) =>
-                                q.eq("messageId", message._id),
-                            )
-                            .take(100),
-                    async (attachment) => {
-                        if (!attachment.purgedAt) {
-                            deletedAttachments++;
-                            freedAttachmentBytes += attachment.size;
-                        }
-                        await safeStorageDelete(ctx, attachment.storageId);
-                        await ctx.db.delete(attachment._id);
-                    },
-                );
-
-                await ctx.db.delete(message._id);
-            },
-        );
-
-        await applyCloudUsageDelta(ctx, authenticatedUserId, {
-            messageCount: -deletedMessages,
-            attachmentCount: -deletedAttachments,
-            attachmentBytes: -freedAttachmentBytes,
+        const operationId = await enqueueDeleteOperation(ctx, {
+            userId: authenticatedUserId,
+            kind: "chatMessages",
+            targetChatId: args.chatId,
         });
 
-        return null;
+        return operationId;
     },
 });

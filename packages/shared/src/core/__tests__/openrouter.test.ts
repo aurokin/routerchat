@@ -106,6 +106,36 @@ describe("openrouter helpers", () => {
         }
     });
 
+    it("builds file content blocks for PDF attachments", () => {
+        const attachments: Attachment[] = [
+            {
+                id: "att-pdf",
+                messageId: "message-1",
+                type: "file",
+                mimeType: "application/pdf",
+                data: "JVBERi0x",
+                width: 0,
+                height: 0,
+                size: 100,
+                filename: "report.pdf",
+                createdAt: 1,
+            },
+        ];
+
+        const content = buildMessageContent("summarize", attachments);
+        expect(Array.isArray(content)).toBe(true);
+        if (Array.isArray(content)) {
+            expect(content[0]).toEqual({
+                type: "file",
+                file: {
+                    filename: "report.pdf",
+                    file_data: "data:application/pdf;base64,JVBERi0x",
+                },
+            });
+            expect(content[1]).toEqual({ type: "text", text: "summarize" });
+        }
+    });
+
     it("extracts reasoning text from detail chunks", () => {
         const details: ReasoningDetailChunk[] = [
             { id: "1", type: "reasoning.text", text: "Hello " },
@@ -158,6 +188,7 @@ describe("fetchModels", () => {
             id: "provider/text-model",
             name: "text-model",
             provider: "provider",
+            inputModalities: ["text", "image"],
             supportedParameters: [
                 SupportedParameter.Tools,
                 SupportedParameter.Reasoning,

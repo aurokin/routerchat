@@ -139,4 +139,25 @@ describe("ChatUsageSummary", () => {
             "60 cached",
         );
     });
+
+    it("renders web search request counts when present", () => {
+        render(
+            <ChatUsageSummary
+                messages={[
+                    makeMessage(
+                        {
+                            promptTokens: 100,
+                            completionTokens: 50,
+                            totalTokens: 150,
+                            webSearchRequests: 2,
+                        },
+                        "1",
+                    ),
+                ]}
+            />,
+        );
+        expect(screen.getByTestId("chat-usage-summary")).toHaveTextContent(
+            "2 web searches",
+        );
+    });
 });

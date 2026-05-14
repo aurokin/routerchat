@@ -25,6 +25,10 @@ import {
     getPersistentCachedAttachmentData,
     setPersistentCachedAttachmentData,
 } from "@/lib/sync/cloud-attachment-cache";
+import { waitForDeleteOperation } from "@/lib/sync/delete-operations";
+
+const DELETE_OPERATION_TIMEOUT_MS = 5 * 60_000;
+const CHAT_DELETE_OPERATION_TIMEOUT_MS = 10 * 60_000;
 
 // --- Public types ---------------------------------------------------------
 
@@ -64,7 +68,7 @@ interface AdapterServices {
         }): Promise<Doc<"chats"> | null>;
         listByUser(args: { userId: Id<"users"> }): Promise<Doc<"chats">[]>;
         update(args: { id: Id<"chats">; chat: ChatSession }): Promise<void>;
-        remove(args: { id: Id<"chats"> }): Promise<void>;
+        remove(args: { id: Id<"chats"> }): Promise<Id<"deleteOperations">>;
     };
     messages: {
         create(args: {
@@ -78,8 +82,10 @@ interface AdapterServices {
         }): Promise<Doc<"messages"> | null>;
         listByChat(args: { chatId: Id<"chats"> }): Promise<Doc<"messages">[]>;
         update(args: { id: Id<"messages">; message: Message }): Promise<void>;
-        remove(args: { id: Id<"messages"> }): Promise<void>;
-        deleteByChat(args: { chatId: Id<"chats"> }): Promise<void>;
+        remove(args: { id: Id<"messages"> }): Promise<Id<"deleteOperations">>;
+        deleteByChat(args: {
+            chatId: Id<"chats">;
+        }): Promise<Id<"deleteOperations">>;
     };
     skills: {
         create(args: {
@@ -100,7 +106,7 @@ interface AdapterServices {
             userId: Id<"users">;
             messageId: Id<"messages">;
             attachment: Attachment;
-            storageId: Id<"_storage">;
+            storageId?: Id<"_storage">;
         }): Promise<Id<"attachments">>;
         get(args: {
             id: Id<"attachments">;
@@ -114,7 +120,9 @@ interface AdapterServices {
         }): Promise<Doc<"attachments">[]>;
         getUrl(args: { storageId: string }): Promise<string | null>;
         remove(args: { id: Id<"attachments"> }): Promise<void>;
-        deleteByMessage(args: { messageId: Id<"messages"> }): Promise<void>;
+        deleteByMessage(args: {
+            messageId: Id<"messages">;
+        }): Promise<Id<"deleteOperations">>;
         getTotalBytesByUser(args: { userId: Id<"users"> }): Promise<number>;
     };
     users: {
@@ -320,9 +328,8 @@ function createServices(client: ConvexClient): AdapterServices {
                     searchLevel: chat.searchLevel,
                 });
             },
-            remove: async ({ id }) => {
-                await client.mutation(api.chats.remove, { id });
-            },
+            remove: async ({ id }) =>
+                await client.mutation(api.chats.remove, { id }),
         },
         messages: {
             create: async ({ userId, chatId, message }) =>
@@ -341,6 +348,10 @@ function createServices(client: ConvexClient): AdapterServices {
                     attachmentIds: message.attachmentIds,
                     usage: message.usage,
                     reasoningDetails: message.reasoningDetails,
+                    toolCalls: message.toolCalls,
+                    toolCallId: message.toolCallId,
+                    toolName: message.toolName,
+                    toolExecutions: message.toolExecutions,
                     createdAt: message.createdAt,
                 }),
             getByLocalId: async ({ userId, localId }) =>
@@ -375,14 +386,16 @@ function createServices(client: ConvexClient): AdapterServices {
                     attachmentIds: message.attachmentIds,
                     usage: message.usage,
                     reasoningDetails: message.reasoningDetails,
+                    toolCalls: message.toolCalls,
+                    toolCallId: message.toolCallId,
+                    toolName: message.toolName,
+                    toolExecutions: message.toolExecutions,
                 });
             },
-            remove: async ({ id }) => {
-                await client.mutation(api.messages.remove, { id });
-            },
-            deleteByChat: async ({ chatId }) => {
-                await client.mutation(api.messages.deleteByChat, { chatId });
-            },
+            remove: async ({ id }) =>
+                await client.mutation(api.messages.remove, { id }),
+            deleteByChat: async ({ chatId }) =>
+                await client.mutation(api.messages.deleteByChat, { chatId }),
         },
         skills: {
             create: async ({ userId, skill }) =>
@@ -392,6 +405,7 @@ function createServices(client: ConvexClient): AdapterServices {
                     name: skill.name,
                     description: skill.description,
                     prompt: skill.prompt,
+                    toolIds: skill.toolIds,
                     createdAt: skill.createdAt,
                 }),
             listByUser: async ({ userId }) =>
@@ -423,6 +437,7 @@ function createServices(client: ConvexClient): AdapterServices {
                     name: skill.name,
                     description: skill.description,
                     prompt: skill.prompt,
+                    toolIds: skill.toolIds,
                 });
             },
             remove: async ({ id }) => {
@@ -437,9 +452,11 @@ function createServices(client: ConvexClient): AdapterServices {
                     userId,
                     messageId,
                     localId: attachment.id,
-                    type: "image",
+                    type: attachment.type,
                     mimeType: attachment.mimeType,
                     storageId,
+                    url: attachment.url,
+                    filename: attachment.filename,
                     width: attachment.width,
                     height: attachment.height,
                     size: attachment.size,
@@ -463,11 +480,10 @@ function createServices(client: ConvexClient): AdapterServices {
             remove: async ({ id }) => {
                 await client.mutation(api.attachments.remove, { id });
             },
-            deleteByMessage: async ({ messageId }) => {
+            deleteByMessage: async ({ messageId }) =>
                 await client.mutation(api.attachments.deleteByMessage, {
                     messageId,
-                });
-            },
+                }),
             getTotalBytesByUser: async ({ userId }) =>
                 await client.query(api.attachments.getTotalBytesByUser, {
                     userId,
@@ -525,6 +541,7 @@ const webAttachmentIO: AttachmentIO = {
 // --- The adapter --------------------------------------------------------
 
 export class ConvexStorageAdapter implements StorageAdapter {
+    private readonly client: ConvexClient;
     private readonly userId: Id<"users">;
     private readonly services: AdapterServices;
     private readonly attachmentIO: AttachmentIO;
@@ -545,6 +562,7 @@ export class ConvexStorageAdapter implements StorageAdapter {
             attachmentIO?: AttachmentIO;
         },
     ) {
+        this.client = client;
         this.userId = userId;
         this.services = overrides?.services ?? createServices(client);
         this.attachmentIO = overrides?.attachmentIO ?? webAttachmentIO;
@@ -619,7 +637,12 @@ export class ConvexStorageAdapter implements StorageAdapter {
             convexId = existing._id;
         }
 
-        await this.services.chats.remove({ id: convexId });
+        const operationId = await this.services.chats.remove({ id: convexId });
+        await waitForDeleteOperation(
+            this.client,
+            operationId,
+            CHAT_DELETE_OPERATION_TIMEOUT_MS,
+        );
         this.chatIdMap.delete(id);
     }
 
@@ -674,7 +697,14 @@ export class ConvexStorageAdapter implements StorageAdapter {
         const chatConvexId = await this.getOrLookupChatId(chatId);
         if (!chatConvexId) return;
 
-        await this.services.messages.deleteByChat({ chatId: chatConvexId });
+        const operationId = await this.services.messages.deleteByChat({
+            chatId: chatConvexId,
+        });
+        await waitForDeleteOperation(
+            this.client,
+            operationId,
+            DELETE_OPERATION_TIMEOUT_MS,
+        );
     }
 
     async deleteMessage(id: string): Promise<void> {
@@ -689,7 +719,14 @@ export class ConvexStorageAdapter implements StorageAdapter {
             convexId = existing._id;
         }
 
-        await this.services.messages.remove({ id: convexId });
+        const operationId = await this.services.messages.remove({
+            id: convexId,
+        });
+        await waitForDeleteOperation(
+            this.client,
+            operationId,
+            DELETE_OPERATION_TIMEOUT_MS,
+        );
         this.messageIdMap.delete(id);
         this.messageConvexToLocal.delete(convexId);
     }
@@ -700,6 +737,16 @@ export class ConvexStorageAdapter implements StorageAdapter {
         );
         if (!messageConvexId) {
             throw new Error(`Message not found: ${attachment.messageId}`);
+        }
+
+        if (attachment.url) {
+            const convexId = await this.services.attachments.create({
+                userId: this.userId,
+                messageId: messageConvexId,
+                attachment,
+            });
+            this.attachmentIdMap.set(attachment.id, convexId);
+            return attachment.id;
         }
 
         const uploadUrl = await this.services.attachments.generateUploadUrl();
@@ -825,9 +872,14 @@ export class ConvexStorageAdapter implements StorageAdapter {
         const messageConvexId = await this.getOrLookupMessageId(messageId);
         if (!messageConvexId) return;
 
-        await this.services.attachments.deleteByMessage({
+        const operationId = await this.services.attachments.deleteByMessage({
             messageId: messageConvexId,
         });
+        await waitForDeleteOperation(
+            this.client,
+            operationId,
+            DELETE_OPERATION_TIMEOUT_MS,
+        );
     }
 
     async getImageStorageUsage(): Promise<number> {
@@ -997,6 +1049,10 @@ export class ConvexStorageAdapter implements StorageAdapter {
             attachmentIds: msg.attachmentIds,
             usage: msg.usage,
             reasoningDetails: msg.reasoningDetails,
+            toolCalls: msg.toolCalls,
+            toolCallId: msg.toolCallId,
+            toolName: msg.toolName,
+            toolExecutions: msg.toolExecutions,
             createdAt: msg.createdAt,
         };
     }
@@ -1007,6 +1063,7 @@ export class ConvexStorageAdapter implements StorageAdapter {
             name: skill.name,
             description: skill.description,
             prompt: skill.prompt,
+            toolIds: skill.toolIds,
             createdAt: skill.createdAt,
         };
     }
@@ -1025,14 +1082,31 @@ export class ConvexStorageAdapter implements StorageAdapter {
             return {
                 id: localId,
                 messageId: resolvedMessageId,
-                type: "image",
+                type: att.type,
                 mimeType: att.mimeType as Attachment["mimeType"],
                 data: "",
                 width: att.width,
                 height: att.height,
                 size: att.size,
+                filename: att.filename,
                 createdAt: att.createdAt,
                 purgedAt: att.purgedAt,
+            };
+        }
+
+        if (att.url) {
+            return {
+                id: localId,
+                messageId: resolvedMessageId,
+                type: att.type,
+                mimeType: att.mimeType as Attachment["mimeType"],
+                data: "",
+                width: att.width,
+                height: att.height,
+                size: att.size,
+                url: att.url,
+                filename: att.filename,
+                createdAt: att.createdAt,
             };
         }
 
@@ -1041,15 +1115,18 @@ export class ConvexStorageAdapter implements StorageAdapter {
             return {
                 id: localId,
                 messageId: resolvedMessageId,
-                type: "image",
+                type: att.type,
                 mimeType: att.mimeType as Attachment["mimeType"],
                 data: cached,
                 width: att.width,
                 height: att.height,
                 size: att.size,
+                filename: att.filename,
                 createdAt: att.createdAt,
             };
         }
+
+        if (!att.storageId) return null;
 
         const url = await this.services.attachments.getUrl({
             storageId: att.storageId,
@@ -1065,12 +1142,13 @@ export class ConvexStorageAdapter implements StorageAdapter {
         return {
             id: localId,
             messageId: resolvedMessageId,
-            type: "image",
+            type: att.type,
             mimeType: att.mimeType as Attachment["mimeType"],
             data,
             width: att.width,
             height: att.height,
             size: att.size,
+            filename: att.filename,
             createdAt: att.createdAt,
         };
     }
